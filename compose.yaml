@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: rio_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - rio_network
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: rio_api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${API_PORT}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - rio_network
+
+  scraper:
+    build:
+      context: .
+      dockerfile: scraper/Dockerfile
+    container_name: rio_scraper
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - rio_network
+
+networks:
+  rio_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
