@@ -7,7 +7,7 @@ from sqlalchemy.orm import (
     mapped_column,
     relationship,
     composite
-    )
+)
 import dataclasses
 
 
@@ -29,10 +29,14 @@ class Port (Base):
     river: Mapped[str] = mapped_column(String(50))
     latitud: Mapped[float] = mapped_column("latitud", Float)
     longitud: Mapped[float] = mapped_column("longitud", Float)
-    coordinates: Mapped[Coordinates] = composite(Coordinates, latitud, longitud)
+    coordinates: Mapped[Coordinates] = composite(
+        Coordinates, latitud, longitud
+    )
     alert_value: Mapped[Optional[float]] = mapped_column(Float)
     evacuation_value: Mapped[Optional[float]] = mapped_column(Float)
-    measurements: Mapped[List["Measurement"]] = relationship(back_populates="port")
+    measurements: Mapped[List["Measurement"]] = relationship(
+        back_populates="port"
+    )
 
 
 class Measurement (Base):
@@ -45,3 +49,4 @@ class Measurement (Base):
     value: Mapped[float] = mapped_column(Float)
     state: Mapped[str] = mapped_column(String(15))
     delta: Mapped[float] = mapped_column(Float)
+    
