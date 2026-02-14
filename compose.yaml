@@ -13,6 +13,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - rio_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
@@ -33,6 +38,9 @@ services:
     build:
       context: .
       dockerfile: scraper/Dockerfile
+    volumes:
+      - ./scraper:/app
+      - ./common:/app/common
     container_name: rio_scraper
     env_file: .env
     depends_on:
