@@ -1,16 +1,25 @@
 from typing import List, Optional
 from datetime import datetime
 from sqlalchemy import String, Float, DateTime, ForeignKey
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, composite
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    mapped_column,
+    relationship,
+    composite
+    )
 import dataclasses
+
 
 class Base (DeclarativeBase):
     pass
+
 
 @dataclasses.dataclass
 class Coordinates:
     latitud: float
     longitud: float
+
 
 class Port (Base):
     __tablename__ = "port"
@@ -25,6 +34,7 @@ class Port (Base):
     evacuation_value: Mapped[Optional[float]] = mapped_column(Float)
     measurements: Mapped[List["Measurement"]] = relationship(back_populates="port")
 
+
 class Measurement (Base):
     __tablename__ = "measurements"
 
@@ -35,5 +45,3 @@ class Measurement (Base):
     value: Mapped[float] = mapped_column(Float)
     state: Mapped[str] = mapped_column(String(15))
     delta: Mapped[float] = mapped_column(Float)
-
-
