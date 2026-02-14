@@ -49,4 +49,3 @@ class Measurement (Base):
     value: Mapped[float] = mapped_column(Float)
     state: Mapped[str] = mapped_column(String(15))
     delta: Mapped[float] = mapped_column(Float)
-    
