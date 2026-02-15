@@ -1,3 +1,6 @@
 pytest
 pytest-mock
 sqlalchemy
+sqlalchemy
+psycopg2-binary
+pydantic-settings
