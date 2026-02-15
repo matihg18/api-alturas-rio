@@ -3,6 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from common.database import Base
 
+
 @pytest.fixture
 def db_session():
     # Creamos una DB en memoria para el test
@@ -12,6 +13,7 @@ def db_session():
     session = Session()
     yield session
     session.close()
+
 
 @pytest.fixture
 def html_ejemplo_prefectura():
@@ -44,6 +46,7 @@ def html_ejemplo_prefectura():
         </body>
     </html>
     """
+
 
 @pytest.fixture
 def html_datos_invalidos():

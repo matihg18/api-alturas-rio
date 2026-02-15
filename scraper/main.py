@@ -3,6 +3,7 @@ from parser import PrefecturaParser
 from repository import ScraperRepository
 from common.database import SessionLocal
 
+
 def main():
     client = PrefecturaClient()
     parser = PrefecturaParser()
@@ -13,11 +14,10 @@ def main():
     try:
         html = client.fetch_data()
         ports_data = parser.parse(html)
-
         repo.save_all(ports_data)
-        
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     main()

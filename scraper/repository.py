@@ -6,19 +6,22 @@ from parser import RawPortData
 
 logger = logging.getLogger(__name__)
 
+
 class ScraperRepository:
     def __init__(self, session: Session):
         self.db = session
         allowed_raw = os.getenv("ALLOWED_RIVERS", "")
-        self.allowed_rivers = [r.strip().upper() for r in allowed_raw.split(",")] if allowed_raw else []
+        self.allowed_rivers = (
+            [r.strip().upper() for r in allowed_raw.split(",")]
+            if allowed_raw else []
+        )
 
     def save_all(self, parsed_ports: list[RawPortData]):
         count = 0
         for raw_port in parsed_ports:
-            if self.allowed_rivers and raw_port.river.upper() not in self.allowed_rivers:
+            if (self.allowed_rivers and raw_port.river.upper() not in self.allowed_rivers):
                 logger.debug(f"SKIPPING PORT {raw_port.name} (RIVER {raw_port.river} NOT ALLOWED)")
                 continue
-            
             try:
                 self._process_single_port(raw_port)
                 count += 1
@@ -26,7 +29,7 @@ class ScraperRepository:
                 logger.error(f"ERROR PROCESSING PORT {raw_port.name}: {e}")
                 self.db.rollback()
                 continue
-        
+
         self.db.commit()
         logger.info(f"PROCESS COMPLETED. {count} HAVE BEEN SAVED.")
 
@@ -43,7 +46,7 @@ class ScraperRepository:
                 evacuation_value=raw.evacuacion_value
             )
             self.db.add(port)
-            self.db.flush() 
+            self.db.flush()
             logger.info(f"NEW PORT: {port.name}")
         else:
             port.latitud = raw.latitud
