@@ -24,13 +24,16 @@ services:
       context: .
       dockerfile: api/Dockerfile
     container_name: rio_api
-    restart: unless-stopped
-    env_file: .env
-    ports:
-      - "${API_PORT}:8000"
+    volumes:
+      - ./api:/app/api
+      - ./common:/app/common
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
+    ports:
+      - "8000:8000"
     networks:
       - rio_network
 
