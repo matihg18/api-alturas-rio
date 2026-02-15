@@ -2,17 +2,13 @@ from typing import List, Optional
 from datetime import datetime
 from sqlalchemy import String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import (
-    DeclarativeBase,
     Mapped,
     mapped_column,
     relationship,
     composite
 )
+from .database import Base
 import dataclasses
-
-
-class Base (DeclarativeBase):
-    pass
 
 
 @dataclasses.dataclass

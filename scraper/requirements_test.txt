@@ -1,6 +1,7 @@
-requests
-beautifulsoup4
-lxml
+pytest
+pytest-mock
+sqlalchemy
 sqlalchemy
 psycopg2-binary
 pydantic-settings
+requests
