@@ -39,7 +39,7 @@ services:
       context: .
       dockerfile: scraper/Dockerfile
     volumes:
-      - ./scraper:/app
+      - ./scraper:/app/scraper
       - ./common:/app/common
     container_name: rio_scraper
     env_file: .env

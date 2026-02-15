@@ -28,4 +28,4 @@ jobs:
 
       - name: Ejecutar Tests Unitarios
         run: |
-          pytest common/ scraper/tests/unit api/tests/unit
+          pytest common/ scraper/tests/ api/tests/

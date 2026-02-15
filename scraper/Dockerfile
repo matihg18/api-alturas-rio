@@ -12,9 +12,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY scraper/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY scraper/requirements_test.txt .
+RUN pip install --no-cache-dir -r requirements.txt -r requirements_test.txt
 
 COPY common/ ./common/
 COPY scraper/ ./scraper/
 
-CMD ["python", "-m", "scraper.main"]
+ENV PYTHONPATH="/app"
+
+CMD ["python", "scraper/main.py"]

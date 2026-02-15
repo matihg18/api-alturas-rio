@@ -24,11 +24,12 @@ class PrefecturaClient:
                 headers = self.headers,
                 timeout = self.timeout
             )
-            response.raise_for_status
+            response.raise_for_status()
             return response.text
         except Exception as e:
             logger.error(f"ERROR FETCHING DATA: {e}")
             if 'response' in locals():
                 logger.error(f"STATUS CODE: {response.status_code}")
-                logger.error(f"RESPONSE TEXT: {response.text[:200]}")
+                res_text = getattr(response, 'text', '')
+                logger.error(f"RESPONSE TEXT: {str(res_text)[:200]}")
             return ""
