@@ -27,7 +27,8 @@ jobs:
           flake8 .
 
       - name: Ejecutar Tests Unitarios
-        PYTHONPATH: .
+        env:
+          PYTHONPATH: .
         run: |
           if [ -f scraper/requirements_test.txt ]; then pip install -r scraper/requirements_test.txt; fi
           pytest common/ scraper/tests/ api/tests/
