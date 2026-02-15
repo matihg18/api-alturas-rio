@@ -9,11 +9,6 @@ class PrefecturaClient:
     def __init__(self):
         self.base_url = os.getenv("SOURCE_URL")
         self.timeout = 10
-        self.headers = {
-            "User-Agent": """Mozilla/5.0 (Windows NT 10.0; Win64; x64)
-            AppleWebKit/537.36 (KHTML, like Gecko)
-            Chrome/91.0.4472.124 Safari/537.36"""
-        }
 
     def fetch_data(self) -> str:
         if not (self.base_url):
@@ -23,7 +18,6 @@ class PrefecturaClient:
         try:
             response = requests.get(
                 self.base_url,
-                headers=self.headers,
                 timeout=self.timeout
             )
             response.raise_for_status()
