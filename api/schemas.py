@@ -1,6 +1,27 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, Generic, TypeVar, List
 from datetime import datetime
+from fastapi import Query
+
+
+T = TypeVar("T")
+
+
+class PagedAndSortedRequest:
+    def __init__(
+        self,
+        skip: int = Query(0, ge=0),
+        limit: int = Query(10, ge=1, le=100),
+        sorting: Optional[str] = Query(None)
+    ):
+        self.skip = skip
+        self.limit = limit
+        self.sorting = sorting
+
+
+class PagedResultResponse(BaseModel, Generic[T]):
+    total_count: int
+    items: List[T]
 
 
 class PortBase (BaseModel):
