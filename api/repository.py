@@ -26,12 +26,15 @@ class ApiRepository:
         
         return stmt.offset(paging.skip).limit(paging.limit)
 
-    def get_port_list(self):
-        stmt = (
-            select(Port)
-        )
-        result = self.db_session.execute(stmt)
-        return result.scalars().all()
+    def get_port_list(self, paging: PagingParams):
+        base_stmt = (select(Port))
+        total_count = self.db_session.execute(
+            select(func.count()).select_from(base_stmt.subquery())
+        ).scalar()
+        items_stmt = self._apply_paging_and_sorting(base_stmt, Measurement, paging)
+        items = self.db_session.execute(items_stmt).scalars().all()
+        result = PagedResultResponse(total_count = total_count, items = items)
+        return result
 
     def get_port_by_port_id(self, port_id: int):
         stmt = (

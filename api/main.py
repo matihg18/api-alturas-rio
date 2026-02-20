@@ -23,10 +23,13 @@ def get_db():
         db.close()
 
 
-@app.get("/ports", response_model=List[PortResponse])
-def get_ports(db: Session = Depends(get_db)):
+@app.get("/ports", response_model=PagedResultResponse[PortResponse])
+def get_ports(
+    paging: PagingParams = Depends(),
+    db: Session = Depends(get_db)
+):
     repository = ApiRepository(db)
-    return repository.get_port_list()
+    return repository.get_port_list(paging)
 
 
 @app.get("/ports/{port_id}", response_model=PortResponse)
