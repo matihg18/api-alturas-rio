@@ -1,13 +1,13 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, Generic, TypeVar, List
-from datetime import datetime
+from datetime import datetime, date
 from fastapi import Query
 
 
 T = TypeVar("T")
 
 
-class PagedAndSortedRequest:
+class PagingParams:
     def __init__(
         self,
         skip: int = Query(0, ge=0),
@@ -18,6 +18,15 @@ class PagedAndSortedRequest:
         self.limit = limit
         self.sorting = sorting
 
+
+class DateFilters:
+    def __init__(
+        self,
+        from_date: Optional[date] = Query(None),
+        to_date: Optional[date] = Query(None)
+    ):
+        self.from_date = from_date
+        self.to_date = to_date
 
 class PagedResultResponse(BaseModel, Generic[T]):
     total_count: int

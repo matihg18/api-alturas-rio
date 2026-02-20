@@ -1,5 +1,11 @@
 from fastapi import FastAPI, Depends
-from api.schemas import MeasurementResponse, PortResponse
+from api.schemas import (
+    MeasurementResponse,
+    PortResponse,
+    PagingParams,
+    DateFilters,
+    PagedResultResponse
+)
 from typing import List, Optional
 from api.repository import ApiRepository
 from common.database import SessionLocal
@@ -32,15 +38,15 @@ def get_port_by_port_id(
     return repository.get_port_by_port_id(port_id)
 
 
-@app.get("/measurements/{port_id}", response_model=List[MeasurementResponse])
+@app.get("/measurements/{port_id}", response_model=PagedResultResponse[MeasurementResponse])
 def get_measurements_by_port_id(
     port_id: int,
-    from_date: Optional[date] = None,
-    to_date: Optional[date] = None,
+    paging: PagingParams = Depends(),
+    date_filters: DateFilters = Depends(),
     db: Session = Depends(get_db)
 ):
     repository = ApiRepository(db)
-    return repository.get_measurements_by_port_id(port_id, from_date, to_date)
+    return repository.get_measurements_by_port_id(port_id, paging, date_filters)
 
 
 @app.get("/measurements/latest/{port_id}", response_model=MeasurementResponse)
@@ -52,13 +58,19 @@ def get_latest_measurement_by_port_id(
     return repository.get_latest_measurement_by_port_id(port_id)
 
 
-@app.get("/alerts", response_model=List[PortResponse])
-def get_ports_with_heigth_alert(db: Session = Depends(get_db)):
+@app.get("/alerts", response_model=PagedResultResponse[PortResponse])
+def get_ports_with_heigth_alert(
+    paging: PagingParams = Depends(),
+    db: Session = Depends(get_db)
+):
     repository = ApiRepository(db)
-    return repository.get_ports_with_height_alert()
+    return repository.get_ports_with_height_alert(paging)
 
 
-@app.get("/alerts/evacuation", response_model=List[PortResponse])
-def get_ports_with_evacutation_alert(db: Session = Depends(get_db)):
+@app.get("/alerts/evacuation", response_model=PagedResultResponse[PortResponse])
+def get_ports_with_evacutation_alert(
+    paging: PagingParams = Depends(),
+    db: Session = Depends(get_db)
+):
     repository = ApiRepository(db)
-    return repository.get_ports_with_evacutation_alert()
+    return repository.get_ports_with_evacutation_alert(paging)
