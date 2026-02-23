@@ -62,18 +62,18 @@ def get_latest_measurement_by_port_id(
 
 
 @app.get("/alerts", response_model=PagedResultResponse[PortResponse])
-def get_ports_with_heigth_alert(
+def get_ports_with_active_alert(
     paging: PagingParams = Depends(),
     db: Session = Depends(get_db)
 ):
     repository = ApiRepository(db)
-    return repository.get_ports_with_height_alert(paging)
+    return repository.get_ports_with_active_alert(paging)
 
 
 @app.get("/alerts/evacuation", response_model=PagedResultResponse[PortResponse])
-def get_ports_with_evacutation_alert(
+def get_ports_with_evacuation_alert(
     paging: PagingParams = Depends(),
     db: Session = Depends(get_db)
 ):
     repository = ApiRepository(db)
-    return repository.get_ports_with_evacutation_alert(paging)
+    return repository.get_ports_with_evacuation_alert(paging)

@@ -6,7 +6,6 @@ from common.database import Base
 
 @pytest.fixture
 def db_session():
-    # Creamos una DB en memoria para el test
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)

@@ -31,7 +31,7 @@ class ApiRepository:
         total_count = self.db_session.execute(
             select(func.count()).select_from(base_stmt.subquery())
         ).scalar()
-        items_stmt = self._apply_paging_and_sorting(base_stmt, Measurement, paging)
+        items_stmt = self._apply_paging_and_sorting(base_stmt, Port, paging)
         items = self.db_session.execute(items_stmt).scalars().all()
         result = PagedResultResponse(total_count = total_count, items = items)
         return result
@@ -44,32 +44,44 @@ class ApiRepository:
         result = self.db_session.execute(stmt)
         return result.scalars().first()
 
-    def get_ports_with_height_alert(self, paging: PagingParams):
+    def get_ports_with_active_alert(self, paging: PagingParams):
+        latest_measurements = (
+        select(Measurement)
+        .distinct(Measurement.port_id)
+        .order_by(Measurement.port_id, desc(Measurement.date_time))
+        .subquery()
+        )
         base_stmt = (
             select(Port)
-            .join(Measurement)
-            .where(Measurement.value > Port.alert_value)
+            .join(latest_measurements, Port.id == latest_measurements.c.port_id)
+            .where(latest_measurements.c.value >= Port.alert_value)
         )
         total_count = self.db_session.execute(
             select(func.count()).select_from(base_stmt.subquery())
         ).scalar()
-        items_stmt = self._apply_paging_and_sorting(base_stmt, Measurement, paging)
+        items_stmt = self._apply_paging_and_sorting(base_stmt, Port, paging)
         items = self.db_session.execute(items_stmt).scalars().all()
-        result = PagedResultResponse(total_count = total_count, items = items)
+        result = PagedResultResponse(total_count=total_count, items=items)
         return result
 
-    def get_ports_with_evacutation_alert(self, paging: PagingParams):
+    def get_ports_with_evacuation_alert(self, paging: PagingParams):
+        latest_measurements = (
+        select(Measurement)
+        .distinct(Measurement.port_id)
+        .order_by(Measurement.port_id, desc(Measurement.date_time))
+        .subquery()
+        )
         base_stmt = (
             select(Port)
-            .join(Measurement)
-            .where(Measurement.value > Port.evacuation_value)
+            .join(latest_measurements, Port.id == latest_measurements.c.port_id)
+            .where(latest_measurements.c.value >= Port.evacuation_value)
         )
         total_count = self.db_session.execute(
             select(func.count()).select_from(base_stmt.subquery())
         ).scalar()
-        items_stmt = self._apply_paging_and_sorting(base_stmt, Measurement, paging)
+        items_stmt = self._apply_paging_and_sorting(base_stmt, Port, paging)
         items = self.db_session.execute(items_stmt).scalars().all()
-        result = PagedResultResponse(total_count = total_count, items = items)
+        result = PagedResultResponse(total_count=total_count, items=items)
         return result
 
     def get_measurements_by_port_id(
