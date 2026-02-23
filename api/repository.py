@@ -11,18 +11,19 @@ class ApiRepository:
 
     def _apply_paging_and_sorting(self, stmt, model, paging: PagingParams):
         if paging.sorting:
-            try:
-                parts = paging.sorting.split("-")
-                col_name = parts[0]
-                direction = parts[1].lower() if len(parts) > 1 else "asc"
-                col_attr = getattr(model, col_name)
-                
-                if direction == "desc":
-                    stmt = stmt.order_by(desc(col_attr))
-                else:
-                    stmt = stmt.order_by(asc(col_attr))
-            except (AttributeError, IndexError):
-                pass
+            parts = paging.sorting.split("-")
+            col_name = parts[0]
+            direction = parts[1].lower() if len(parts) > 1 else "asc"
+            
+            if not hasattr(model, col_name):
+                raise ValueError(f"Invalid sorting column: {col_name}")
+
+            col_attr = getattr(model, col_name)
+            
+            if direction == "desc":
+                stmt = stmt.order_by(desc(col_attr))
+            else:
+                stmt = stmt.order_by(asc(col_attr))
         
         return stmt.offset(paging.skip).limit(paging.limit)
 
