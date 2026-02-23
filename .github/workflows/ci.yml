@@ -39,7 +39,7 @@ jobs:
 
 
       - name: Run Scraper Tests
-        run: docker compose exec -T scraper pytest scraper/tests/
+        run: docker compose run --rm scraper pytest scraper/tests/
 
       - name: Run API Tests
         run: docker compose exec -T api pytest api/tests/ 
