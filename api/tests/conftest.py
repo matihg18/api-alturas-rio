@@ -5,6 +5,7 @@ from api.main import app, get_db
 from common.database import Base
 from common.models import Port, Measurement
 from datetime import date
+from fastapi.testclient import TestClient
 import os
 
 DB_USER = os.getenv("DB_TEST_USER", "postgres")
@@ -101,3 +102,15 @@ def seed_data(db_session):
     )
     db_session.add_all([port_1, port_2, port_3, measurement_1, measurement_2, measurement_3])
     db_session.commit()
+
+@pytest.fixture(scope="function")
+def client(db_session):
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
