@@ -1,7 +1,6 @@
-from sqlalchemy import select, desc, func
+from sqlalchemy import select, desc, asc, func
 from sqlalchemy.orm import Session
 from common.models import Measurement, Port
-from datetime import date
 from api.schemas import PagedResultResponse, PagingParams, DateFilters
 
 
@@ -14,17 +13,17 @@ class ApiRepository:
             parts = paging.sorting.split("-")
             col_name = parts[0]
             direction = parts[1].lower() if len(parts) > 1 else "asc"
-            
+
             if not hasattr(model, col_name):
                 raise ValueError(f"Invalid sorting column: {col_name}")
 
             col_attr = getattr(model, col_name)
-            
+
             if direction == "desc":
                 stmt = stmt.order_by(desc(col_attr))
             else:
                 stmt = stmt.order_by(asc(col_attr))
-        
+
         return stmt.offset(paging.skip).limit(paging.limit)
 
     def get_port_list(self, paging: PagingParams):
@@ -34,7 +33,7 @@ class ApiRepository:
         ).scalar()
         items_stmt = self._apply_paging_and_sorting(base_stmt, Port, paging)
         items = self.db_session.execute(items_stmt).scalars().all()
-        result = PagedResultResponse(total_count = total_count, items = items)
+        result = PagedResultResponse(total_count=total_count, items=items)
         return result
 
     def get_port_by_port_id(self, port_id: int):
@@ -47,10 +46,10 @@ class ApiRepository:
 
     def get_ports_with_active_alert(self, paging: PagingParams):
         latest_measurements = (
-        select(Measurement)
-        .distinct(Measurement.port_id)
-        .order_by(Measurement.port_id, desc(Measurement.date_time))
-        .subquery()
+            select(Measurement)
+            .distinct(Measurement.port_id)
+            .order_by(Measurement.port_id, desc(Measurement.date_time))
+            .subquery()
         )
         base_stmt = (
             select(Port)
@@ -67,10 +66,10 @@ class ApiRepository:
 
     def get_ports_with_evacuation_alert(self, paging: PagingParams):
         latest_measurements = (
-        select(Measurement)
-        .distinct(Measurement.port_id)
-        .order_by(Measurement.port_id, desc(Measurement.date_time))
-        .subquery()
+            select(Measurement)
+            .distinct(Measurement.port_id)
+            .order_by(Measurement.port_id, desc(Measurement.date_time))
+            .subquery()
         )
         base_stmt = (
             select(Port)
@@ -102,7 +101,7 @@ class ApiRepository:
         items_stmt = self._apply_paging_and_sorting(base_stmt, Measurement, paging)
         items = self.db_session.execute(items_stmt).scalars().all()
 
-        result = PagedResultResponse(total_count = total_count, items = items)
+        result = PagedResultResponse(total_count=total_count, items=items)
 
         return result
 

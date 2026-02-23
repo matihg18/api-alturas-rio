@@ -6,11 +6,9 @@ from api.schemas import (
     DateFilters,
     PagedResultResponse
 )
-from typing import List, Optional
 from api.repository import ApiRepository
 from common.database import SessionLocal
 from sqlalchemy.orm import Session
-from datetime import date
 
 app = FastAPI()
 
@@ -40,7 +38,7 @@ def get_port_by_port_id(
     repository = ApiRepository(db)
     port = repository.get_port_by_port_id(port_id)
     if not port:
-        raise HTTPException(status_code = 404, detail = f"Port with id:{port_id} not found")
+        raise HTTPException(status_code=404, detail=f"Port with id:{port_id} not found")
     return port
 
 
@@ -64,15 +62,15 @@ def get_latest_measurement_by_port_id(
     db: Session = Depends(get_db)
 ):
     repository = ApiRepository(db)
-    
+
     port = repository.get_port_by_port_id(port_id)
     if not port:
         raise HTTPException(status_code=404, detail=f"Port with id {port_id} not found")
-    
+
     measurement = repository.get_latest_measurement_by_port_id(port_id)
     if not measurement:
         raise HTTPException(status_code=404, detail=f"No measurements found for port {port_id}")
-    
+
     return repository.get_latest_measurement_by_port_id(port_id)
 
 

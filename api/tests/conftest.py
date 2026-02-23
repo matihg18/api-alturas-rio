@@ -18,10 +18,12 @@ DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:5432/{DB_NA
 engine = create_engine(DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
     Base.metadata.create_all(bind=engine)
     yield
+
 
 @pytest.fixture(scope="function")
 def db_session():
@@ -35,73 +37,63 @@ def db_session():
     transaction.rollback()
     connection.close()
 
-@pytest.fixture(scope="function")
-def client(db_session):
-    def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
-    app.dependency_overrides[get_db] = override_get_db
-    from fastapi.testclient import TestClient
-    yield TestClient(app)
-    del app.dependency_overrides[get_db]
 
 @pytest.fixture(scope="function")
 def seed_data(db_session):
     port_1 = Port(
-        id = 1,
-        name = "testPort1",
-        river = "testRiver",
-        alert_value = 5.0,
-        evacuation_value = 7.0,
-        latitud = 30.00,
-        longitud = 50.00
+        id=1,
+        name="testPort1",
+        river="testRiver",
+        alert_value=5.0,
+        evacuation_value=7.0,
+        latitud=30.00,
+        longitud=50.00
     )
     port_2 = Port(
-        id = 2,
-        name = "testPort2",
-        river = "testRiver",
-        alert_value = 3.0,
-        evacuation_value = 4.0,
-        latitud = 50.00,
-        longitud = 30.00
+        id=2,
+        name="testPort2",
+        river="testRiver",
+        alert_value=3.0,
+        evacuation_value=4.0,
+        latitud=50.00,
+        longitud=30.00
     )
     port_3 = Port(
-        id = 3,
-        name = "testPort3",
-        river = "testRiver",
-        alert_value = 5.0,
-        evacuation_value = 7.0,
-        latitud = 50.00,
-        longitud = 30.00
+        id=3,
+        name="testPort3",
+        river="testRiver",
+        alert_value=5.0,
+        evacuation_value=7.0,
+        latitud=50.00,
+        longitud=30.00
     )
     measurement_1 = Measurement(
-        id = 1,
-        port_id = 1,
-        date_time = date(2026,2,21),
-        value = 4.7,
-        state = "CRECE",
-        delta = 0.3,
+        id=1,
+        port_id=1,
+        date_time=date(2026, 2, 21),
+        value=4.7,
+        state="CRECE",
+        delta=0.3,
     )
     measurement_2 = Measurement(
-        id = 2,
-        port_id = 1,
-        date_time = date(2026,2,22),
-        value = 5.1,
-        state = "CRECE",
-        delta = 0.4,
+        id=2,
+        port_id=1,
+        date_time=date(2026, 2, 22),
+        value=5.1,
+        state="CRECE",
+        delta=0.4,
     )
     measurement_3 = Measurement(
-        id = 3,
-        port_id = 2,
-        date_time = date(2026,2,22),
-        value = 4.1,
-        state = "BAJA",
-        delta = 0.4,
+        id=3,
+        port_id=2,
+        date_time=date(2026, 2, 22),
+        value=4.1,
+        state="BAJA",
+        delta=0.4,
     )
     db_session.add_all([port_1, port_2, port_3, measurement_1, measurement_2, measurement_3])
     db_session.commit()
+
 
 @pytest.fixture(scope="function")
 def client(db_session):

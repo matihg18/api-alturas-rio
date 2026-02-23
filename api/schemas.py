@@ -28,6 +28,7 @@ class DateFilters:
         self.from_date = from_date
         self.to_date = to_date
 
+
 class PagedResultResponse(BaseModel, Generic[T]):
     total_count: int
     items: List[T]
