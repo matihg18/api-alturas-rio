@@ -1,8 +1,8 @@
-from parser import PrefecturaParser
+from parser import IncrementalParser
 
 
 def test_parser_extracts_data_correctly(html_ejemplo_prefectura):
-    parser = PrefecturaParser()
+    parser = IncrementalParser()
 
     resultados = parser.parse(html_ejemplo_prefectura)
 
@@ -15,7 +15,7 @@ def test_parser_extracts_data_correctly(html_ejemplo_prefectura):
 
 
 def test_parser_manage_invalidad_data(html_datos_invalidos):
-    parser = PrefecturaParser()
+    parser = IncrementalParser()
 
     resultados = parser.parse(html_datos_invalidos)
 
@@ -23,7 +23,7 @@ def test_parser_manage_invalidad_data(html_datos_invalidos):
 
 
 def test_timestamp_conversion(html_ejemplo_prefectura):
-    parser = PrefecturaParser()
+    parser = IncrementalParser()
     resultados = parser.parse(html_ejemplo_prefectura)
 
     ts = resultados[0].timestamp

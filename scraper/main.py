@@ -1,22 +1,26 @@
-from client import PrefecturaClient
-from parser import PrefecturaParser
+from client import ScraperClient
+from parser import IncrementalParser, BackFillParser
+from strategies import IncrementalStrategy, BackFillStrategy
 from repository import ScraperRepository
+from context import ScraperContext
 from common.database import SessionLocal
+import os
 
 
 def main():
-    client = PrefecturaClient()
-    parser = PrefecturaParser()
-
+    mode = os.getenv("SCRAPER_MODE", "incremental")
     db = SessionLocal()
-    repo = ScraperRepository(db)
+    repository = ScraperRepository(db)
 
-    try:
-        html = client.fetch_data()
-        ports_data = parser.parse(html)
-        repo.save_all(ports_data)
-    finally:
-        db.close()
+    if mode == "backfill":
+        strategy = BackFillStrategy(
+            os.getenv("START_DATE"),
+            os.getenv("END_DATE")
+        )
+    else:
+        strategy = IncrementalStrategy()
+        context = ScraperContext(strategy, repository)
+        context.execute()
 
 
 if __name__ == "__main__":

@@ -57,7 +57,7 @@ class RawPortData(BaseModel):
             return datetime.now()
 
 
-class PrefecturaParser:
+class IncrementalParser:
     def __init__(self):
         self.pattern = re.compile(r"var mapData = '(.*?)';", re.DOTALL)
 
@@ -75,3 +75,7 @@ class PrefecturaParser:
         except Exception as e:
             logger.error(f"Error en parseo: {e}")
             return []
+
+class BackFillParser:
+    def __init__(self):
+        pass
