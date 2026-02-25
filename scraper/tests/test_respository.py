@@ -1,11 +1,12 @@
 from datetime import datetime
+import config
 from repository import ScraperRepository
 from parser import RawPortData, RawMeasurementData
 from common.models import Port, Measurement
 
 
 def test_sync_ports_creates_new_port(db_session, monkeypatch):
-    monkeypatch.setenv("ALLOWED_RIVERS", "")
+    monkeypatch.setattr(config, "ALLOWED_RIVERS", [])
     repo = ScraperRepository(db_session)
 
     ports = [
@@ -25,7 +26,7 @@ def test_sync_ports_creates_new_port(db_session, monkeypatch):
 
 
 def test_sync_ports_updates_existing_port(db_session, monkeypatch):
-    monkeypatch.setenv("ALLOWED_RIVERS", "")
+    monkeypatch.setattr(config, "ALLOWED_RIVERS", [])
     repo = ScraperRepository(db_session)
 
     ports_v1 = [
@@ -53,7 +54,7 @@ def test_sync_ports_updates_existing_port(db_session, monkeypatch):
 
 
 def test_sync_ports_filters_by_river(db_session, monkeypatch):
-    monkeypatch.setenv("ALLOWED_RIVERS", "URUGUAY")
+    monkeypatch.setattr(config, "ALLOWED_RIVERS", ["URUGUAY"])
     repo = ScraperRepository(db_session)
 
     ports = [
@@ -75,7 +76,7 @@ def test_sync_ports_filters_by_river(db_session, monkeypatch):
 
 
 def test_save_measurements_with_existing_port(db_session, monkeypatch):
-    monkeypatch.setenv("ALLOWED_RIVERS", "")
+    monkeypatch.setattr(config, "ALLOWED_RIVERS", [])
     repo = ScraperRepository(db_session)
 
     repo.sync_ports([
@@ -103,7 +104,7 @@ def test_save_measurements_with_existing_port(db_session, monkeypatch):
 
 
 def test_save_measurements_skips_unknown_port(db_session, monkeypatch):
-    monkeypatch.setenv("ALLOWED_RIVERS", "")
+    monkeypatch.setattr(config, "ALLOWED_RIVERS", [])
     repo = ScraperRepository(db_session)
 
     measurements = [
