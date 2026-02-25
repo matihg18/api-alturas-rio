@@ -1,26 +1,31 @@
-from client import ScraperClient
-from parser import IncrementalParser, BackFillParser
 from strategies import IncrementalStrategy, BackFillStrategy
+from port_syncer import PortSyncer
 from repository import ScraperRepository
 from context import ScraperContext
 from common.database import SessionLocal
 import os
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 
 
 def main():
     mode = os.getenv("SCRAPER_MODE", "incremental")
     db = SessionLocal()
     repository = ScraperRepository(db)
+    port_syncer = PortSyncer()
 
     if mode == "backfill":
-        strategy = BackFillStrategy(
-            os.getenv("START_DATE"),
-            os.getenv("END_DATE")
-        )
+        backfill_days = int(os.getenv("BACKFILL_DAYS", "7"))
+        strategy = BackFillStrategy(backfill_days)
     else:
         strategy = IncrementalStrategy()
-        context = ScraperContext(strategy, repository)
-        context.execute()
+
+    context = ScraperContext(strategy, port_syncer, repository)
+    context.execute()
 
 
 if __name__ == "__main__":
