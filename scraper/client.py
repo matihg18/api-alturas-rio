@@ -1,5 +1,4 @@
 import requests
-import os
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,7 +8,7 @@ class ScraperClient:
     def __init__(self):
         self.timeout = 10
 
-    def fetch_data(self, url:str) -> str:
+    def fetch_data(self, url: str) -> str:
         if not (url):
             logger.error("URL NOT CONFIGURED")
             return ""

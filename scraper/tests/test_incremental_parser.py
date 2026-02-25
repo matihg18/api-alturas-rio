@@ -1,4 +1,4 @@
-from parser import IncrementalParser, RawPortData, RawMeasurementData
+from parser import IncrementalParser
 
 
 def test_parser_extracts_ports_and_measurements(html_ejemplo_prefectura):

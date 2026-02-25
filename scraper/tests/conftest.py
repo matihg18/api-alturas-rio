@@ -88,7 +88,8 @@ def html_pagina_principal():
                 <td data-label="Fecha Anterior:">13/FEB/26 - 1200</td>
                 <td data-label="Alerta:">7.10</td>
                 <td data-label="Evacuación:">7.90</td>
-                <td><a href="/alturas/?page=historico&amp;tiempo=7&amp;id=550" target="_blank"><i class="fa fa-2x fa-line-chart"></i></a></td>
+                <td><a href="/alturas/?page=historico&amp;tiempo=7&amp;id=550"
+                    target="_blank"><i class="fa fa-2x fa-line-chart"></i></a></td>
             </tr>
             <tr class="">
                 <th data-label="Puerto:">CONCORDIA</th>
@@ -103,7 +104,8 @@ def html_pagina_principal():
                 <td data-label="Fecha Anterior:">13/FEB/26 - 1200</td>
                 <td data-label="Alerta:">10.50</td>
                 <td data-label="Evacuación:">13.50</td>
-                <td><a href="/alturas/?page=historico&amp;tiempo=7&amp;id=500" target="_blank"><i class="fa fa-2x fa-line-chart"></i></a></td>
+                <td><a href="/alturas/?page=historico&amp;tiempo=7&amp;id=500"
+                    target="_blank"><i class="fa fa-2x fa-line-chart"></i></a></td>
             </tr>
         </tbody>
     </table>
@@ -155,4 +157,3 @@ def html_historico_sin_datos():
     <span>No hay registros para mostrar</span>
     </body></html>
     """
-
