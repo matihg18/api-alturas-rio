@@ -2,7 +2,7 @@ import logging
 from sqlalchemy.orm import Session
 from common.models import Port, Measurement
 from parser import RawPortData, RawMeasurementData
-from config import ALLOWED_RIVERS
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -10,12 +10,12 @@ logger = logging.getLogger(__name__)
 class ScraperRepository:
     def __init__(self, session: Session):
         self.db = session
-        self.allowed_rivers = ALLOWED_RIVERS
 
     def sync_ports(self, ports: list[RawPortData]):
+        allowed = config.ALLOWED_RIVERS
         count = 0
         for raw_port in ports:
-            if self.allowed_rivers and raw_port.river.upper() not in self.allowed_rivers:
+            if allowed and raw_port.river.upper() not in allowed:
                 logger.debug(f"SKIPPING PORT {raw_port.name} (RIVER {raw_port.river} NOT ALLOWED)")
                 continue
             try:
