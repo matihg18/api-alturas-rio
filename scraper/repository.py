@@ -1,8 +1,8 @@
 import logging
-import os
 from sqlalchemy.orm import Session
 from common.models import Port, Measurement
-from parser import RawPortData
+from parser import RawPortData, RawMeasurementData
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -10,65 +10,85 @@ logger = logging.getLogger(__name__)
 class ScraperRepository:
     def __init__(self, session: Session):
         self.db = session
-        allowed_raw = os.getenv("ALLOWED_RIVERS", "")
-        self.allowed_rivers = (
-            [r.strip().upper() for r in allowed_raw.split(",")]
-            if allowed_raw else []
-        )
 
-    def save_all(self, parsed_ports: list[RawPortData]):
+    def sync_ports(self, ports: list[RawPortData]):
+        allowed = config.ALLOWED_RIVERS
         count = 0
-        for raw_port in parsed_ports:
-            if (self.allowed_rivers and raw_port.river.upper() not in self.allowed_rivers):
+        for raw_port in ports:
+            if allowed and raw_port.river.upper() not in allowed:
                 logger.debug(f"SKIPPING PORT {raw_port.name} (RIVER {raw_port.river} NOT ALLOWED)")
                 continue
             try:
-                self._process_single_port(raw_port)
+                port = self.db.query(Port).filter(Port.name == raw_port.name).first()
+
+                if not port:
+                    port = Port(
+                        name=raw_port.name,
+                        river=raw_port.river,
+                        latitud=raw_port.latitud,
+                        longitud=raw_port.longitud,
+                        alert_value=raw_port.alert_value,
+                        evacuation_value=raw_port.evacuation_value
+                    )
+                    self.db.add(port)
+                    self.db.flush()
+                    logger.info(f"NEW PORT: {port.name}")
+                else:
+                    port.latitud = raw_port.latitud
+                    port.longitud = raw_port.longitud
+                    port.alert_value = raw_port.alert_value
+                    port.evacuation_value = raw_port.evacuation_value
+                    logger.debug(f"UPDATED PORT: {port.name}")
+
                 count += 1
             except Exception as e:
-                logger.error(f"ERROR PROCESSING PORT {raw_port.name}: {e}")
+                logger.error(f"ERROR SYNCING PORT {raw_port.name}: {e}")
                 self.db.rollback()
                 continue
 
         self.db.commit()
-        logger.info(f"PROCESS COMPLETED. {count} HAVE BEEN SAVED.")
+        logger.info(f"PORT SYNC COMPLETED. {count} PORTS PROCESSED.")
 
-    def _process_single_port(self, raw: RawPortData):
-        port = self.db.query(Port).filter(Port.name == raw.name).first()
+    def save_measurements(self, measurements: list[RawMeasurementData]):
+        saved = 0
+        skipped = 0
 
-        if not port:
-            port = Port(
-                name=raw.name,
-                river=raw.river,
-                latitud=raw.latitud,
-                longitud=raw.longitud,
-                alert_value=raw.alert_value,
-                evacuation_value=raw.evacuacion_value
-            )
-            self.db.add(port)
-            self.db.flush()
-            logger.info(f"NEW PORT: {port.name}")
-        else:
-            port.latitud = raw.latitud
-            port.longitud = raw.longitud
-            port.alert_value = raw.alert_value
-            port.evacuation_value = raw.evacuacion_value
-            logger.debug(f"UPDATED PORT: {port.name}")
+        for raw_m in measurements:
+            try:
+                port = self.db.query(Port).filter(
+                    Port.name == raw_m.port_name
+                ).first()
 
-        timestamp = raw.timestamp
+                if not port:
+                    logger.warning(
+                        f"PORT '{raw_m.port_name}' NOT FOUND IN DB, "
+                        f"SKIPPING MEASUREMENT ({raw_m.date_time})"
+                    )
+                    skipped += 1
+                    continue
 
-        existing_m = self.db.query(Measurement).filter(
-            Measurement.port_id == port.id,
-            Measurement.date_time == timestamp
-        ).first()
+                existing = self.db.query(Measurement).filter(
+                    Measurement.port_id == port.id,
+                    Measurement.date_time == raw_m.date_time
+                ).first()
 
-        if not existing_m and raw.value is not None:
-            new_measurement = Measurement(
-                port_id=port.id,
-                date_time=timestamp,
-                value=raw.value,
-                state=raw.state,
-                delta=raw.delta if raw.delta is not None else 0.0
-            )
-            self.db.add(new_measurement)
-            logger.info(f"SAVED MEASUREMENT TO {port.name}: {raw.value}m")
+                if not existing and raw_m.value is not None:
+                    new_measurement = Measurement(
+                        port_id=port.id,
+                        date_time=raw_m.date_time,
+                        value=raw_m.value,
+                        state=raw_m.state or "",
+                        delta=raw_m.delta if raw_m.delta is not None else 0.0
+                    )
+                    self.db.add(new_measurement)
+                    saved += 1
+
+            except Exception as e:
+                logger.error(f"ERROR SAVING MEASUREMENT FOR {raw_m.port_name}: {e}")
+                self.db.rollback()
+                continue
+
+        self.db.commit()
+        logger.info(
+            f"MEASUREMENTS COMPLETED. {saved} SAVED, {skipped} SKIPPED (UNKNOWN PORTS)."
+        )

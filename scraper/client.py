@@ -1,23 +1,21 @@
 import requests
-import os
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class PrefecturaClient:
+class ScraperClient:
     def __init__(self):
-        self.base_url = os.getenv("SOURCE_URL")
         self.timeout = 10
 
-    def fetch_data(self) -> str:
-        if not (self.base_url):
+    def fetch_data(self, url: str) -> str:
+        if not (url):
             logger.error("URL NOT CONFIGURED")
             return ""
 
         try:
             response = requests.get(
-                self.base_url,
+                url,
                 timeout=self.timeout
             )
             response.raise_for_status()

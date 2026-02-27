@@ -1,33 +1,24 @@
 import json
 import re
 import logging
+from bs4 import BeautifulSoup
 from datetime import datetime
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Tuple
 from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
 
 class RawPortData(BaseModel):
+    """Datos de un puerto (sin mediciones). Fuente: mapa.php"""
     name: str = Field(alias="PUERTO")
     river: str = Field(alias="RIO")
     latitud: float = Field(alias="LATITUD")
     longitud: float = Field(alias="LONGITUD")
     alert_value: Optional[float] = Field(None, alias="ALERTA")
-    evacuacion_value: Optional[float] = Field(None, alias="EVACUACION")
+    evacuation_value: Optional[float] = Field(None, alias="EVACUACION")
 
-    value: Optional[float] = Field(None, alias="ULTIMOREGISTRO")
-    state: str = Field(alias="ESTADO")
-    delta: Optional[float] = Field(None, alias="VARIACION")
-    date_time_str: str = Field(alias="FECHAHORA")
-
-    @field_validator(
-        "value",
-        "alert_value",
-        "evacuacion_value",
-        "delta",
-        mode="before"
-    )
+    @field_validator("alert_value", "evacuation_value", mode="before")
     @classmethod
     def parse_numeric_strings(cls, v: Any) -> Optional[float]:
         if v in ("-", "", "S/E", None):
@@ -38,40 +29,150 @@ class RawPortData(BaseModel):
             logger.debug(f"No se pudo convertir a float: {v}")
             return None
 
-    @property
-    def timestamp(self) -> datetime:
-        meses = {
-            'ENE': '01', 'FEB': '02', 'MAR': '03', 'ABR': '04',
-            'MAY': '05', 'JUN': '06', 'JUL': '07', 'AGO': '08',
-            'SEP': '09', 'OCT': '10', 'NOV': '11', 'DIC': '12'
-        }
-        try:
-            clean_str = self.date_time_str.upper()
-            for esp, num in meses.items():
-                if esp in clean_str:
-                    clean_str = clean_str.replace(esp, num)
 
-            return datetime.strptime(clean_str, "%d/%m/%y - %H%M")
-        except Exception as e:
-            logger.error(f"Error parseando fecha {self.date_time_str}: {e}")
-            return datetime.now()
+class RawMeasurementData(BaseModel):
+    """Datos de una medición individual."""
+    port_name: str
+    date_time: datetime
+    value: Optional[float] = None
+    state: Optional[str] = None
+    delta: Optional[float] = None
 
 
-class PrefecturaParser:
+class IncrementalParser:
+    """Parsea mapa.php para extraer puertos y su última medición."""
+
+    MESES = {
+        'ENE': '01', 'FEB': '02', 'MAR': '03', 'ABR': '04',
+        'MAY': '05', 'JUN': '06', 'JUL': '07', 'AGO': '08',
+        'SEP': '09', 'OCT': '10', 'NOV': '11', 'DIC': '12'
+    }
+
     def __init__(self):
         self.pattern = re.compile(r"var mapData = '(.*?)';", re.DOTALL)
 
-    def parse(self, html_content: str) -> List[RawPortData]:
+    def parse(self, html_content: str) -> Tuple[List[RawPortData], List[RawMeasurementData]]:
         match = self.pattern.search(html_content)
         if not match:
             logger.error("No se encontró mapData en el HTML")
+            return [], []
+
+        try:
+            json_str = match.group(1).replace('\\/', '/')
+            raw_list = json.loads(json_str)
+
+            ports = []
+            measurements = []
+
+            for item in raw_list:
+                ports.append(RawPortData(**item))
+
+                timestamp = self._parse_timestamp(item.get("FECHAHORA", ""))
+                value = self._parse_float(item.get("ULTIMOREGISTRO"))
+                delta = self._parse_float(item.get("VARIACION"))
+
+                if value is not None:
+                    measurements.append(RawMeasurementData(
+                        port_name=item["PUERTO"],
+                        date_time=timestamp,
+                        value=value,
+                        state=item.get("ESTADO", ""),
+                        delta=delta if delta is not None else 0.0
+                    ))
+
+            return ports, measurements
+        except Exception as e:
+            logger.error(f"Error en parseo: {e}")
+            return [], []
+
+    def _parse_timestamp(self, date_str: str) -> datetime:
+        try:
+            clean_str = date_str.upper()
+            for esp, num in self.MESES.items():
+                if esp in clean_str:
+                    clean_str = clean_str.replace(esp, num)
+            return datetime.strptime(clean_str, "%d/%m/%y - %H%M")
+        except Exception as e:
+            logger.error(f"Error parseando fecha {date_str}: {e}")
+            return datetime.now()
+
+    @staticmethod
+    def _parse_float(v: Any) -> Optional[float]:
+        if v in ("-", "", "S/E", None):
+            return None
+        try:
+            return float(str(v).replace(",", "."))
+        except ValueError:
+            return None
+
+
+class BackFillParser:
+
+    def __init__(self, base_domain: str):
+        self.base_domain = base_domain
+
+    def parse_port_urls(self, html_content: str) -> List[dict]:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        ports_found = []
+
+        table_body = soup.find('tbody')
+        rows = table_body.find_all('tr') if table_body else soup.find_all('tr')
+
+        for row in rows:
+            th = row.find('th')
+            if not th:
+                continue
+
+            cols = row.find_all('td')
+            if len(cols) < 5:
+                continue
+
+            port_info = {
+                "name": th.get_text(strip=True),
+                "river": cols[0].get_text(strip=True).upper(),
+                "history_url": ""
+            }
+
+            link_tag = row.find('a', href=re.compile(r"page=historico"))
+            if link_tag:
+                href = link_tag['href'].replace('\n', '').strip()
+                if href.startswith('/'):
+                    href = self.base_domain + href
+                port_info["history_url"] = href
+                ports_found.append(port_info)
+
+        logger.debug(f"Found {len(ports_found)} ports with history URLs")
+        return ports_found
+
+    def parse_history_table(
+        self, html_content: str, port_name: str
+    ) -> List[RawMeasurementData]:
+        measurements = []
+        pattern = re.compile(
+            r"name:\s*'Registro',\s*data:\s*(\[\[.*?\]\])", re.DOTALL
+        )
+        match = pattern.search(html_content)
+
+        if not match:
             return []
 
         try:
+            raw_json = match.group(1)
+            raw_json = raw_json.replace('Array', 'null')
+            raw_points = json.loads(raw_json)
 
-            json_str = match.group(1).replace('\\/', '/')
-            raw_list = json.loads(json_str)
-            return [RawPortData(**item) for item in raw_list]
+            for point in raw_points:
+                ts_ms = point[0]
+                val = point[1]
+                if val is None:
+                    continue
+                measurements.append(RawMeasurementData(
+                    port_name=port_name,
+                    date_time=datetime.fromtimestamp(ts_ms / 1000.0),
+                    value=float(val),
+                ))
+
         except Exception as e:
-            logger.error(f"Error en parseo: {e}")
-            return []
+            logger.error(f"Error parsing {port_name} JSON data: {e}")
+
+        return measurements
