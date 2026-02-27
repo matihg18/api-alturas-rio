@@ -1,0 +1,6 @@
+pytest
+pytest-mock
+sqlalchemy
+psycopg2-binary
+pydantic-settings
+requests

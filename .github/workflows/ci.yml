@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  quality-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Setup .env
+        run: |
+          echo "DB_HOST=db" >> .env
+          echo "DB_PORT=5432" >> .env
+          echo "DB_USER=admin" >> .env
+          echo "DB_PASSWORD=password" >> .env
+          echo "DB_NAME=rio_db" >> .env
+          echo "DB_TEST_USER=admin" >> .env
+          echo "DB_TEST_PASSWORD=password" >> .env
+          echo "DB_TEST_NAME=rio_db_test" >> .env
+
+      - name: Build and Run Infrastructure
+        run: docker compose up -d --build
+
+      - name: Wait for DB
+        run: |
+          until docker exec rio_db pg_isready -U admin; do
+            echo "Esperando a Postgres..."
+            sleep 2
+          done
+
+      - name: Linter (Flake8)
+        run: |
+          pip install flake8
+          flake8 . --exclude=venv,migrations
+
+
+      - name: Run Scraper Tests
+        run: docker compose run --rm scraper pytest scraper/tests/
+
+      - name: Run API Tests
+        run: docker compose exec -T api pytest api/tests/ 

@@ -1,0 +1,62 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: rio_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - rio_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: rio_api
+    volumes:
+      - ./api:/app/api
+      - ./common:/app/common
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - rio_network
+
+  scraper:
+    build:
+      context: .
+      dockerfile: scraper/Dockerfile
+    volumes:
+      - ./scraper:/app/scraper
+      - ./common:/app/common
+    container_name: rio_scraper
+    restart: always
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - rio_network
+
+networks:
+  rio_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
