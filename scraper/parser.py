@@ -35,8 +35,6 @@ class RawMeasurementData(BaseModel):
     port_name: str
     date_time: datetime
     value: Optional[float] = None
-    state: Optional[str] = None
-    delta: Optional[float] = None
 
 
 class IncrementalParser:
@@ -69,15 +67,12 @@ class IncrementalParser:
 
                 timestamp = self._parse_timestamp(item.get("FECHAHORA", ""))
                 value = self._parse_float(item.get("ULTIMOREGISTRO"))
-                delta = self._parse_float(item.get("VARIACION"))
 
                 if value is not None:
                     measurements.append(RawMeasurementData(
                         port_name=item["PUERTO"],
                         date_time=timestamp,
                         value=value,
-                        state=item.get("ESTADO", ""),
-                        delta=delta if delta is not None else 0.0
                     ))
 
             return ports, measurements

@@ -72,24 +72,18 @@ def seed_data(db_session):
         port_id=1,
         date_time=date(2026, 2, 21),
         value=4.7,
-        state="CRECE",
-        delta=0.3,
     )
     measurement_2 = Measurement(
         id=2,
         port_id=1,
         date_time=date(2026, 2, 22),
         value=5.1,
-        state="CRECE",
-        delta=0.4,
     )
     measurement_3 = Measurement(
         id=3,
         port_id=2,
         date_time=date(2026, 2, 22),
         value=4.1,
-        state="BAJA",
-        delta=0.4,
     )
     db_session.add_all([port_1, port_2, port_3, measurement_1, measurement_2, measurement_3])
     db_session.commit()

@@ -77,8 +77,6 @@ class ScraperRepository:
                         port_id=port.id,
                         date_time=raw_m.date_time,
                         value=raw_m.value,
-                        state=raw_m.state or "",
-                        delta=raw_m.delta if raw_m.delta is not None else 0.0
                     )
                     self.db.add(new_measurement)
                     saved += 1

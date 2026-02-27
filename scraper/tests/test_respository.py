@@ -91,8 +91,6 @@ def test_save_measurements_with_existing_port(db_session, monkeypatch):
             port_name="COLON",
             date_time=datetime(2026, 2, 14, 12, 0),
             value=2.15,
-            state="CRECE",
-            delta=0.4
         )
     ]
     repo.save_measurements(measurements)
@@ -112,8 +110,6 @@ def test_save_measurements_skips_unknown_port(db_session, monkeypatch):
             port_name="PUERTO_INEXISTENTE",
             date_time=datetime(2026, 2, 14, 12, 0),
             value=3.50,
-            state="BAJA",
-            delta=-0.2
         )
     ]
     repo.save_measurements(measurements)
@@ -138,8 +134,6 @@ def test_no_duplicate_measurements(db_session, monkeypatch):
             port_name="COLON",
             date_time=datetime(2026, 2, 14, 12, 0),
             value=2.15,
-            state="CRECE",
-            delta=0.4
         )
     ]
 
