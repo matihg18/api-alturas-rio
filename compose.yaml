@@ -46,6 +46,7 @@ services:
       - ./scraper:/app/scraper
       - ./common:/app/common
     container_name: rio_scraper
+    restart: always
     env_file: .env
     depends_on:
       db:
