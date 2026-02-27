@@ -43,5 +43,3 @@ class Measurement (Base):
     port: Mapped["Port"] = relationship(back_populates="measurements")
     date_time: Mapped[datetime] = mapped_column(DateTime)
     value: Mapped[float] = mapped_column(Float)
-    state: Mapped[str] = mapped_column(String(15))
-    delta: Mapped[float] = mapped_column(Float)

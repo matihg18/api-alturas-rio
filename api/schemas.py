@@ -52,8 +52,6 @@ class MeasurementBase (BaseModel):
     port_id: int
     date_time: datetime
     value: float
-    state: Optional[str] = None
-    delta: Optional[float] = 0.0
 
 
 class MeasurementResponse (MeasurementBase):
