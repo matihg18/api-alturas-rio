@@ -13,3 +13,5 @@ ALLOWED_RIVERS = (
     [r.strip().upper() for r in ALLOWED_RIVERS_RAW.split(",")]
     if ALLOWED_RIVERS_RAW else []
 )
+
+SCRAPER_INTERVAL = int(os.getenv("SCRAPER_INTERVAL", "43200"))
