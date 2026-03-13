@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from api.schemas import (
     MeasurementResponse,
     PortResponse,
@@ -7,10 +7,16 @@ from api.schemas import (
     PagedResultResponse
 )
 from api.repository import ApiRepository
+from api.rate_limiter import limiter, rate_limit_exceeded_handler, RATE_LIMIT_DEFAULT
 from common.database import SessionLocal
 from sqlalchemy.orm import Session
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 
 def get_db():
@@ -22,7 +28,9 @@ def get_db():
 
 
 @app.get("/ports", response_model=PagedResultResponse[PortResponse])
+@limiter.limit(RATE_LIMIT_DEFAULT)
 def get_ports(
+    request: Request,
     paging: PagingParams = Depends(),
     db: Session = Depends(get_db)
 ):
@@ -31,7 +39,9 @@ def get_ports(
 
 
 @app.get("/ports/{port_id}", response_model=PortResponse)
+@limiter.limit(RATE_LIMIT_DEFAULT)
 def get_port_by_port_id(
+    request: Request,
     port_id: int,
     db: Session = Depends(get_db)
 ):
@@ -43,7 +53,9 @@ def get_port_by_port_id(
 
 
 @app.get("/measurements/{port_id}", response_model=PagedResultResponse[MeasurementResponse])
+@limiter.limit(RATE_LIMIT_DEFAULT)
 def get_measurements_by_port_id(
+    request: Request,
     port_id: int,
     paging: PagingParams = Depends(),
     date_filters: DateFilters = Depends(),
@@ -57,7 +69,9 @@ def get_measurements_by_port_id(
 
 
 @app.get("/measurements/latest/{port_id}", response_model=MeasurementResponse)
+@limiter.limit(RATE_LIMIT_DEFAULT)
 def get_latest_measurement_by_port_id(
+    request: Request,
     port_id: int,
     db: Session = Depends(get_db)
 ):
@@ -75,7 +89,9 @@ def get_latest_measurement_by_port_id(
 
 
 @app.get("/alerts", response_model=PagedResultResponse[PortResponse])
+@limiter.limit(RATE_LIMIT_DEFAULT)
 def get_ports_with_active_alert(
+    request: Request,
     paging: PagingParams = Depends(),
     db: Session = Depends(get_db)
 ):
@@ -84,7 +100,9 @@ def get_ports_with_active_alert(
 
 
 @app.get("/alerts/evacuation", response_model=PagedResultResponse[PortResponse])
+@limiter.limit(RATE_LIMIT_DEFAULT)
 def get_ports_with_evacuation_alert(
+    request: Request,
     paging: PagingParams = Depends(),
     db: Session = Depends(get_db)
 ):
