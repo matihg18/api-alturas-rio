@@ -60,7 +60,6 @@ def test_rate_limit_response_has_error_detail(client):
     assert "error" in data or "detail" in data
 
 
-
 def test_rate_limit_applies_per_endpoint(client):
     """El rate limit aplica de forma independiente por endpoint."""
     # Agotar el límite en /ports

@@ -10,7 +10,6 @@ from api.repository import ApiRepository
 from api.rate_limiter import limiter, rate_limit_exceeded_handler, RATE_LIMIT_DEFAULT
 from common.database import SessionLocal
 from sqlalchemy.orm import Session
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
