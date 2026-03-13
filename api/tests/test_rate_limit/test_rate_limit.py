@@ -1,5 +1,5 @@
 import pytest
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
