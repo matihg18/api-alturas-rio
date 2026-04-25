@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Request
 from api.schemas import (
     MeasurementResponse,
-    PortResponse,
+    StationResponse,
     PagingParams,
     DateFilters,
     PagedResultResponse
@@ -12,8 +12,17 @@ from common.database import SessionLocal
 from sqlalchemy.orm import Session
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from common.database import engine
+from common.models import Base
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
+
+app = FastAPI(lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
@@ -27,84 +36,87 @@ def get_db():
         db.close()
 
 
-@app.get("/ports", response_model=PagedResultResponse[PortResponse])
+@app.get("/stations", response_model=PagedResultResponse[StationResponse])
 @limiter.limit(RATE_LIMIT_DEFAULT)
-def get_ports(
+def get_stations(
     request: Request,
     paging: PagingParams = Depends(),
     db: Session = Depends(get_db)
 ):
     repository = ApiRepository(db)
-    return repository.get_port_list(paging)
+    return repository.get_station_list(paging)
 
 
-@app.get("/ports/{port_id}", response_model=PortResponse)
+@app.get("/stations/{station_id}", response_model=StationResponse)
 @limiter.limit(RATE_LIMIT_DEFAULT)
-def get_port_by_port_id(
+def get_station_by_id(
     request: Request,
-    port_id: int,
+    station_id: int,
     db: Session = Depends(get_db)
 ):
     repository = ApiRepository(db)
-    port = repository.get_port_by_port_id(port_id)
-    if not port:
-        raise HTTPException(status_code=404, detail=f"Port with id:{port_id} not found")
-    return port
+    station = repository.get_station_by_id(station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station with id:{station_id} not found")
+    return station
 
 
-@app.get("/measurements/{port_id}", response_model=PagedResultResponse[MeasurementResponse])
+@app.get("/measurements/{station_id}", response_model=PagedResultResponse[MeasurementResponse])
 @limiter.limit(RATE_LIMIT_DEFAULT)
-def get_measurements_by_port_id(
+def get_measurements_by_station_id(
     request: Request,
-    port_id: int,
+    station_id: int,
     paging: PagingParams = Depends(),
     date_filters: DateFilters = Depends(),
     db: Session = Depends(get_db)
 ):
     repository = ApiRepository(db)
-    port = repository.get_port_by_port_id(port_id)
-    if not port:
-        raise HTTPException(status_code=404, detail=f"Port with id {port_id} not found")
-    return repository.get_measurements_by_port_id(port_id, paging, date_filters)
+    station = repository.get_station_by_id(station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station with id {station_id} not found")
+    return repository.get_measurements_by_station_id(station_id, paging, date_filters)
 
 
-@app.get("/measurements/latest/{port_id}", response_model=MeasurementResponse)
+@app.get("/measurements/latest/{station_id}", response_model=MeasurementResponse)
 @limiter.limit(RATE_LIMIT_DEFAULT)
-def get_latest_measurement_by_port_id(
+def get_latest_measurement_by_station_id(
     request: Request,
-    port_id: int,
+    station_id: int,
     db: Session = Depends(get_db)
 ):
     repository = ApiRepository(db)
 
-    port = repository.get_port_by_port_id(port_id)
-    if not port:
-        raise HTTPException(status_code=404, detail=f"Port with id {port_id} not found")
+    station = repository.get_station_by_id(station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station with id {station_id} not found")
 
-    measurement = repository.get_latest_measurement_by_port_id(port_id)
+    measurement = repository.get_latest_measurement_by_station_id(station_id)
     if not measurement:
-        raise HTTPException(status_code=404, detail=f"No measurements found for port {port_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"No measurements found for station {station_id}"
+        )
 
-    return repository.get_latest_measurement_by_port_id(port_id)
+    return measurement
 
 
-@app.get("/alerts", response_model=PagedResultResponse[PortResponse])
+@app.get("/alerts", response_model=PagedResultResponse[StationResponse])
 @limiter.limit(RATE_LIMIT_DEFAULT)
-def get_ports_with_active_alert(
+def get_stations_with_active_alert(
     request: Request,
     paging: PagingParams = Depends(),
     db: Session = Depends(get_db)
 ):
     repository = ApiRepository(db)
-    return repository.get_ports_with_active_alert(paging)
+    return repository.get_stations_with_active_alert(paging)
 
 
-@app.get("/alerts/evacuation", response_model=PagedResultResponse[PortResponse])
+@app.get("/alerts/evacuation", response_model=PagedResultResponse[StationResponse])
 @limiter.limit(RATE_LIMIT_DEFAULT)
-def get_ports_with_evacuation_alert(
+def get_stations_with_evacuation_alert(
     request: Request,
     paging: PagingParams = Depends(),
     db: Session = Depends(get_db)
 ):
     repository = ApiRepository(db)
-    return repository.get_ports_with_evacuation_alert(paging)
+    return repository.get_stations_with_evacuation_alert(paging)

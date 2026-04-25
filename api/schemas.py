@@ -34,26 +34,27 @@ class PagedResultResponse(BaseModel, Generic[T]):
     items: List[T]
 
 
-class PortBase (BaseModel):
+class StationBase(BaseModel):
     name: str
     river: str
+    source: str
     latitud: Optional[float] = None
     longitud: Optional[float] = None
     alert_value: Optional[float] = None
     evacuation_value: Optional[float] = None
 
 
-class PortResponse (PortBase):
+class StationResponse(StationBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
 
-class MeasurementBase (BaseModel):
-    port_id: int
+class MeasurementBase(BaseModel):
+    station_id: int
     date_time: datetime
     value: float
 
 
-class MeasurementResponse (MeasurementBase):
+class MeasurementResponse(MeasurementBase):
     id: int
     model_config = ConfigDict(from_attributes=True)

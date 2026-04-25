@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from api.main import app, get_db
 from common.database import Base
-from common.models import Port, Measurement
+from common.models import Station, Measurement
 from datetime import date
 from fastapi.testclient import TestClient
 import os
@@ -40,28 +40,31 @@ def db_session():
 
 @pytest.fixture(scope="function")
 def seed_data(db_session):
-    port_1 = Port(
+    station_1 = Station(
         id=1,
-        name="testPort1",
+        name="testStation1",
         river="testRiver",
+        source="prefectura",
         alert_value=5.0,
         evacuation_value=7.0,
         latitud=30.00,
         longitud=50.00
     )
-    port_2 = Port(
+    station_2 = Station(
         id=2,
-        name="testPort2",
+        name="testStation2",
         river="testRiver",
+        source="prefectura",
         alert_value=3.0,
         evacuation_value=4.0,
         latitud=50.00,
         longitud=30.00
     )
-    port_3 = Port(
+    station_3 = Station(
         id=3,
-        name="testPort3",
+        name="testStation3",
         river="testRiver",
+        source="prefectura",
         alert_value=5.0,
         evacuation_value=7.0,
         latitud=50.00,
@@ -69,23 +72,26 @@ def seed_data(db_session):
     )
     measurement_1 = Measurement(
         id=1,
-        port_id=1,
+        station_id=1,
         date_time=date(2026, 2, 21),
         value=4.7,
     )
     measurement_2 = Measurement(
         id=2,
-        port_id=1,
+        station_id=1,
         date_time=date(2026, 2, 22),
         value=5.1,
     )
     measurement_3 = Measurement(
         id=3,
-        port_id=2,
+        station_id=2,
         date_time=date(2026, 2, 22),
         value=4.1,
     )
-    db_session.add_all([port_1, port_2, port_3, measurement_1, measurement_2, measurement_3])
+    db_session.add_all([
+        station_1, station_2, station_3,
+        measurement_1, measurement_2, measurement_3
+    ])
     db_session.commit()
 
 
