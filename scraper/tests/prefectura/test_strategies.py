@@ -1,11 +1,11 @@
-from strategies import BackFillStrategy
+from scraper.prefectura.strategy import PrefecturaBackFillStrategy
 
 
 def test_build_history_url_replaces_tiempo(monkeypatch):
     monkeypatch.setenv("BASE_SOURCE_URL", "https://example.com/alturas/")
     monkeypatch.setenv("ALLOWED_RIVERS", "")
 
-    strategy = BackFillStrategy(backfill_days=30)
+    strategy = PrefecturaBackFillStrategy(backfill_days=30)
     original = "https://example.com/alturas/?page=historico&tiempo=7&id=550"
     result = strategy._build_history_url(original)
 
@@ -18,7 +18,7 @@ def test_build_history_url_preserves_other_params(monkeypatch):
     monkeypatch.setenv("BASE_SOURCE_URL", "https://example.com/alturas/")
     monkeypatch.setenv("ALLOWED_RIVERS", "")
 
-    strategy = BackFillStrategy(backfill_days=90)
+    strategy = PrefecturaBackFillStrategy(backfill_days=90)
     original = "https://example.com/alturas/?page=historico&tiempo=7&id=100"
     result = strategy._build_history_url(original)
 

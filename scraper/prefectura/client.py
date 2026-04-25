@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class ScraperClient:
+class PrefecturaClient:
     def __init__(self):
         self.timeout = 10
 

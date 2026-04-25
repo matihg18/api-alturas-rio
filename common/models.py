@@ -17,12 +17,13 @@ class Coordinates:
     longitud: float
 
 
-class Port (Base):
-    __tablename__ = "port"
+class Station(Base):
+    __tablename__ = "stations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(50))
+    name: Mapped[str] = mapped_column(String(100))
     river: Mapped[str] = mapped_column(String(50))
+    source: Mapped[str] = mapped_column(String(50))
     latitud: Mapped[float] = mapped_column("latitud", Float)
     longitud: Mapped[float] = mapped_column("longitud", Float)
     coordinates: Mapped[Coordinates] = composite(
@@ -31,15 +32,15 @@ class Port (Base):
     alert_value: Mapped[Optional[float]] = mapped_column(Float)
     evacuation_value: Mapped[Optional[float]] = mapped_column(Float)
     measurements: Mapped[List["Measurement"]] = relationship(
-        back_populates="port"
+        back_populates="station"
     )
 
 
-class Measurement (Base):
+class Measurement(Base):
     __tablename__ = "measurements"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    port_id: Mapped[int] = mapped_column(ForeignKey("port.id"))
-    port: Mapped["Port"] = relationship(back_populates="measurements")
+    station_id: Mapped[int] = mapped_column(ForeignKey("stations.id"))
+    station: Mapped["Station"] = relationship(back_populates="measurements")
     date_time: Mapped[datetime] = mapped_column(DateTime)
     value: Mapped[float] = mapped_column(Float)
