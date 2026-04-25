@@ -32,14 +32,16 @@ jobs:
             sleep 2
           done
 
+      - name: Create test database
+        run: docker exec rio_db psql -U admin -c "CREATE DATABASE rio_db_test;"
+
       - name: Linter (Flake8)
         run: |
           pip install flake8
-          flake8 . --exclude=venv,migrations
-
+          flake8 . --exclude=.venv,venv,migrations
 
       - name: Run Scraper Tests
         run: docker compose run --rm scraper pytest scraper/tests/
 
       - name: Run API Tests
-        run: docker compose exec -T api pytest api/tests/ 
+        run: docker compose run --rm api pytest api/tests/
