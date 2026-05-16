@@ -1,55 +1,36 @@
 import json
 import re
-import logging
 from bs4 import BeautifulSoup
 from datetime import datetime
+import logging
 from typing import List, Optional, Any, Tuple
-from pydantic import BaseModel, Field, field_validator
+from scraper.schemas import RawStationData, RawMeasurementData
 
 logger = logging.getLogger(__name__)
 
 
-class RawPortData(BaseModel):
-    """Datos de un puerto (sin mediciones). Fuente: mapa.php"""
-    name: str = Field(alias="PUERTO")
-    river: str = Field(alias="RIO")
-    latitud: float = Field(alias="LATITUD")
-    longitud: float = Field(alias="LONGITUD")
-    alert_value: Optional[float] = Field(None, alias="ALERTA")
-    evacuation_value: Optional[float] = Field(None, alias="EVACUACION")
-
-    @field_validator("alert_value", "evacuation_value", mode="before")
-    @classmethod
-    def parse_numeric_strings(cls, v: Any) -> Optional[float]:
-        if v in ("-", "", "S/E", None):
-            return None
-        try:
-            return float(str(v).replace(",", "."))
-        except ValueError:
-            logger.debug(f"No se pudo convertir a float: {v}")
-            return None
-
-
-class RawMeasurementData(BaseModel):
-    """Datos de una medición individual."""
-    port_name: str
-    date_time: datetime
-    value: Optional[float] = None
-
-
-class IncrementalParser:
-    """Parsea mapa.php para extraer puertos y su última medición."""
+class PrefecturaIncrementalParser:
+    """Parsea mapa.php para extraer estaciones y su última medición."""
 
     MESES = {
-        'ENE': '01', 'FEB': '02', 'MAR': '03', 'ABR': '04',
-        'MAY': '05', 'JUN': '06', 'JUL': '07', 'AGO': '08',
-        'SEP': '09', 'OCT': '10', 'NOV': '11', 'DIC': '12'
+        'ENE': '01', 'JAN': '01',
+        'FEB': '02',
+        'MAR': '03',
+        'ABR': '04', 'APR': '04',
+        'MAY': '05',
+        'JUN': '06',
+        'JUL': '07',
+        'AGO': '08', 'AUG': '08',
+        'SEP': '09',
+        'OCT': '10',
+        'NOV': '11',
+        'DIC': '12', 'DEC': '12'
     }
 
     def __init__(self):
         self.pattern = re.compile(r"var mapData = '(.*?)';", re.DOTALL)
 
-    def parse(self, html_content: str) -> Tuple[List[RawPortData], List[RawMeasurementData]]:
+    def parse(self, html_content: str) -> Tuple[List[RawStationData], List[RawMeasurementData]]:
         match = self.pattern.search(html_content)
         if not match:
             logger.error("No se encontró mapData en el HTML")
@@ -59,23 +40,23 @@ class IncrementalParser:
             json_str = match.group(1).replace('\\/', '/')
             raw_list = json.loads(json_str)
 
-            ports = []
+            stations = []
             measurements = []
 
             for item in raw_list:
-                ports.append(RawPortData(**item))
+                stations.append(RawStationData(**item))
 
                 timestamp = self._parse_timestamp(item.get("FECHAHORA", ""))
                 value = self._parse_float(item.get("ULTIMOREGISTRO"))
 
                 if value is not None:
                     measurements.append(RawMeasurementData(
-                        port_name=item["PUERTO"],
+                        station_name=item["PUERTO"],
                         date_time=timestamp,
                         value=value,
                     ))
 
-            return ports, measurements
+            return stations, measurements
         except Exception as e:
             logger.error(f"Error en parseo: {e}")
             return [], []
@@ -101,7 +82,7 @@ class IncrementalParser:
             return None
 
 
-class BackFillParser:
+class PrefecturaBackFillParser:
 
     def __init__(self, base_domain: str):
         self.base_domain = base_domain
@@ -136,11 +117,11 @@ class BackFillParser:
                 port_info["history_url"] = href
                 ports_found.append(port_info)
 
-        logger.debug(f"Found {len(ports_found)} ports with history URLs")
+        logger.debug(f"Found {len(ports_found)} stations with history URLs")
         return ports_found
 
     def parse_history_table(
-        self, html_content: str, port_name: str
+        self, html_content: str, station_name: str
     ) -> List[RawMeasurementData]:
         measurements = []
         pattern = re.compile(
@@ -162,12 +143,12 @@ class BackFillParser:
                 if val is None:
                     continue
                 measurements.append(RawMeasurementData(
-                    port_name=port_name,
+                    station_name=station_name,
                     date_time=datetime.fromtimestamp(ts_ms / 1000.0),
                     value=float(val),
                 ))
 
         except Exception as e:
-            logger.error(f"Error parsing {port_name} JSON data: {e}")
+            logger.error(f"Error parsing {station_name} JSON data: {e}")
 
         return measurements

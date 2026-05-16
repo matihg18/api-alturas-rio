@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["scraper/tests", "api/tests"]
+
+[tool.pyright]
+extraPaths = ["."]

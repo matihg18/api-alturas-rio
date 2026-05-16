@@ -1,8 +1,8 @@
 # Sistema de Monitoreo de Altura de Ríos 🌊
 
-Este proyecto surge ante la dificultad de acceder a datos históricos y estructurados sobre los niveles de los ríos desde portales oficiales, que suelen estar limitados a consultas visuales en tiempo real. 
+Este proyecto surge ante la dificultad de acceder a datos históricos y estructurados sobre los niveles de los ríos desde portales oficiales, que suelen estar limitados a consultas visuales en tiempo real.
 
-La solución funciona como un recolector y expositor centralizado de información, automatizando la captura de datos y transformándolos en una infraestructura ordenada, persistente y fácil de consumir para aplicaciones externas, análisis estadísticos o sistemas de alerta.
+La solución funciona como un recolector y expositor centralizado de información, automatizando la captura de datos desde múltiples fuentes oficiales y transformándolos en una infraestructura ordenada, persistente y fácil de consumir para aplicaciones externas, análisis estadísticos o sistemas de alerta.
 
 ---
 
@@ -14,9 +14,21 @@ El sistema se basa en una **arquitectura distribuida de servicios independientes
 Asimismo, el proyecto adopta un modelo **Cliente-Servidor**. Al exponer una API RESTful centralizada, el sistema actúa como un proveedor único de datos estructurados (*Single Source of Truth*), permitiendo que diversos clientes (como aplicaciones móviles, dashboards o herramientas de análisis) consuman la información de forma independiente.
 
 ### Componentes Core:
-1.  **Ingestador de Datos (Scraper):** Módulo basado en Python que extrae información de la Prefectura Naval Argentina.
+1.  **Ingestador de Datos (Scraper):** Módulo basado en Python que extrae información de múltiples fuentes hidrológicas oficiales (ver [Fuentes de Datos](#-fuentes-de-datos)).
 2.  **API RESTful:** Desarrollada con **FastAPI**, proporciona una interfaz de alto rendimiento para consultas de datos en tiempo real e históricos.
-3.  **Base de Datos Relacional:** PostgreSQL como motor de persistencia, asegurando integridad referencial y eficiencia en consultas geespaciales y temporales.
+3.  **Base de Datos Relacional:** PostgreSQL como motor de persistencia, asegurando integridad referencial y eficiencia en consultas geoespaciales y temporales.
+
+---
+
+## 📡 Fuentes de Datos
+
+El scraper integra actualmente dos fuentes oficiales de datos hidrométricos:
+
+### 🔹 Prefectura Naval Argentina
+Extrae mediciones de altura publicadas en el portal web de la Prefectura Naval. Opera mediante scraping HTML y soporta dos modos de ejecución: incremental y backfill histórico.
+
+### 🔹 INA (Instituto Nacional del Agua)
+Consume la API REST pública del INA (`alerta.ina.gob.ar/a5`) para obtener series de altura hidrométrica (variable `2`). Esta fuente puede habilitarse o deshabilitarse de forma independiente mediante la variable de entorno `INA_ENABLED`.
 
 ---
 
@@ -61,13 +73,23 @@ docker exec rio_scraper pytest
 ```
 
 ### Ejecución del Scraper
-Por defecto, el scraper se ejecuta en **modo incremental cada 12 horas** (`SCRAPER_INTERVAL=43200`), ya que la fuente oficial actualiza sus mediciones dos veces al día.
+Por defecto, el scraper se ejecuta en **modo incremental cada 12 horas** (`SCRAPER_INTERVAL=43200`), procesando ambas fuentes (Prefectura e INA) en cada ciclo.
 
 #### Modo Backfill (Histórico)
 Si se desea reconstruir el historial de mediciones (por ejemplo, los últimos 30 días), se puede ejecutar el scraper con la variable de entorno `SCRAPER_MODE=backfill`:
 
 ```bash
 docker compose run --rm -e SCRAPER_MODE=backfill -e BACKFILL_DAYS=30 scraper
+```
+
+Esto ejecutará el backfill en ambas fuentes simultáneamente.
+
+#### Habilitar/Deshabilitar la fuente INA
+La integración con INA está **habilitada por defecto**. Para desactivarla:
+
+```bash
+# En el archivo .env
+INA_ENABLED=false
 ```
 
 ---
@@ -78,6 +100,6 @@ Accede a la documentación interactiva (Swagger UI) en:
 `http://localhost:8000/docs`
 
 ### Endpoints Principales:
-*   `GET /ports`: Listado de puertos con soporte para paginación y ordenamiento.
-*   `GET /measurements/{port_id}`: Historial de mediciones con filtros de fecha.
-*   `GET /alerts`: Puertos que superan niveles de alerta o evacuación en tiempo real.
+*   `GET /stations`: Listado de estaciones con soporte para paginación y ordenamiento.
+*   `GET /measurements/{station_id}`: Historial de mediciones con filtros de fecha.
+*   `GET /alerts`: Estaciones que superan niveles de alerta o evacuación en tiempo real.
