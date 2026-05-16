@@ -1,6 +1,6 @@
 from sqlalchemy import select, desc, asc, func
 from sqlalchemy.orm import Session
-from common.models import Measurement, Port
+from common.models import Measurement, Station, ReferenceZeroType, GaugePoint
 from api.schemas import PagedResultResponse, PagingParams, DateFilters
 
 
@@ -26,91 +26,94 @@ class ApiRepository:
 
         return stmt.offset(paging.skip).limit(paging.limit)
 
-    def get_port_list(self, paging: PagingParams):
-        base_stmt = (select(Port))
+    def get_station_list(self, paging: PagingParams):
+        base_stmt = select(Station)
         total_count = self.db_session.execute(
             select(func.count()).select_from(base_stmt.subquery())
         ).scalar()
-        items_stmt = self._apply_paging_and_sorting(base_stmt, Port, paging)
+        items_stmt = self._apply_paging_and_sorting(base_stmt, Station, paging)
         items = self.db_session.execute(items_stmt).scalars().all()
-        result = PagedResultResponse(total_count=total_count, items=items)
-        return result
+        return PagedResultResponse(total_count=total_count, items=items)
 
-    def get_port_by_port_id(self, port_id: int):
-        stmt = (
-            select(Port)
-            .where(Port.id == port_id)
-        )
-        result = self.db_session.execute(stmt)
-        return result.scalars().first()
+    def get_station_by_id(self, station_id: int):
+        stmt = select(Station).where(Station.id == station_id)
+        return self.db_session.execute(stmt).scalars().first()
 
-    def get_ports_with_active_alert(self, paging: PagingParams):
+    def get_stations_with_active_alert(self, paging: PagingParams):
         latest_measurements = (
             select(Measurement)
-            .distinct(Measurement.port_id)
-            .order_by(Measurement.port_id, desc(Measurement.date_time))
+            .distinct(Measurement.station_id)
+            .order_by(Measurement.station_id, desc(Measurement.date_time))
             .subquery()
         )
         base_stmt = (
-            select(Port)
-            .join(latest_measurements, Port.id == latest_measurements.c.port_id)
-            .where(latest_measurements.c.value >= Port.alert_value)
+            select(Station)
+            .join(latest_measurements, Station.id == latest_measurements.c.station_id)
+            .where(latest_measurements.c.value >= Station.alert_value)
         )
         total_count = self.db_session.execute(
             select(func.count()).select_from(base_stmt.subquery())
         ).scalar()
-        items_stmt = self._apply_paging_and_sorting(base_stmt, Port, paging)
+        items_stmt = self._apply_paging_and_sorting(base_stmt, Station, paging)
         items = self.db_session.execute(items_stmt).scalars().all()
-        result = PagedResultResponse(total_count=total_count, items=items)
-        return result
+        return PagedResultResponse(total_count=total_count, items=items)
 
-    def get_ports_with_evacuation_alert(self, paging: PagingParams):
+    def get_stations_with_evacuation_alert(self, paging: PagingParams):
         latest_measurements = (
             select(Measurement)
-            .distinct(Measurement.port_id)
-            .order_by(Measurement.port_id, desc(Measurement.date_time))
+            .distinct(Measurement.station_id)
+            .order_by(Measurement.station_id, desc(Measurement.date_time))
             .subquery()
         )
         base_stmt = (
-            select(Port)
-            .join(latest_measurements, Port.id == latest_measurements.c.port_id)
-            .where(latest_measurements.c.value >= Port.evacuation_value)
+            select(Station)
+            .join(latest_measurements, Station.id == latest_measurements.c.station_id)
+            .where(latest_measurements.c.value >= Station.evacuation_value)
         )
         total_count = self.db_session.execute(
             select(func.count()).select_from(base_stmt.subquery())
         ).scalar()
-        items_stmt = self._apply_paging_and_sorting(base_stmt, Port, paging)
+        items_stmt = self._apply_paging_and_sorting(base_stmt, Station, paging)
         items = self.db_session.execute(items_stmt).scalars().all()
-        result = PagedResultResponse(total_count=total_count, items=items)
-        return result
+        return PagedResultResponse(total_count=total_count, items=items)
 
-    def get_measurements_by_port_id(
+    def get_measurements_by_station_id(
         self,
-        port_id: int,
+        station_id: int,
         paging: PagingParams,
         date_filters: DateFilters
     ):
-        base_stmt = select(Measurement).where(Measurement.port_id == port_id)
+        base_stmt = select(Measurement).where(Measurement.station_id == station_id)
         if date_filters.from_date:
-            base_stmt = base_stmt.where(func.date(Measurement.date_time) >= date_filters.from_date)
+            base_stmt = base_stmt.where(
+                func.date(Measurement.date_time) >= date_filters.from_date
+            )
         if date_filters.to_date:
-            base_stmt = base_stmt.where(func.date(Measurement.date_time) <= date_filters.to_date)
+            base_stmt = base_stmt.where(
+                func.date(Measurement.date_time) <= date_filters.to_date
+            )
         total_count = self.db_session.execute(
             select(func.count()).select_from(base_stmt.subquery())
         ).scalar()
         items_stmt = self._apply_paging_and_sorting(base_stmt, Measurement, paging)
         items = self.db_session.execute(items_stmt).scalars().all()
+        return PagedResultResponse(total_count=total_count, items=items)
 
-        result = PagedResultResponse(total_count=total_count, items=items)
-
-        return result
-
-    def get_latest_measurement_by_port_id(self, port_id: int):
+    def get_latest_measurement_by_station_id(self, station_id: int):
         stmt = (
             select(Measurement)
-            .where(Measurement.port_id == port_id)
+            .where(Measurement.station_id == station_id)
             .order_by(desc(Measurement.date_time))
             .limit(1)
         )
-        result = self.db_session.execute(stmt)
-        return result.scalars().first()
+        return self.db_session.execute(stmt).scalars().first()
+
+    def get_datum_types(self):
+        stmt = select(ReferenceZeroType)
+        return self.db_session.execute(stmt).scalars().all()
+
+    def get_gauge_point_for_station(self, station_id: int):
+        station = self.db_session.get(Station, station_id)
+        if not station or station.gauge_point_id is None:
+            return None
+        return self.db_session.get(GaugePoint, station.gauge_point_id)
