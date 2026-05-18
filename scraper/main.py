@@ -107,6 +107,13 @@ def main():
         ))
 
     # --- Bucle Principal (Scheduler) ---
+    if mode == "backfill":
+        logger.info(f"Running ONE-SHOT backfill mode for {os.getenv('BACKFILL_DAYS', '7')} days")
+        for runner in runners:
+            runner.run()
+        logger.info("Backfill completed. Exiting.")
+        return
+
     logger.info(f"Starting scraper scheduler. Tick interval: {config.SCRAPER_TICK}s")
     while True:
         for runner in runners:
