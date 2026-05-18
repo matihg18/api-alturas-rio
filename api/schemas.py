@@ -72,6 +72,7 @@ class LatestMeasurementResponse(MeasurementResponse):
     datum_used: str = "LOCAL"
     conversion_available: bool = False
 
+
 class ReferenceZeroTypeResponse(BaseModel):
     id: int
     code: str
