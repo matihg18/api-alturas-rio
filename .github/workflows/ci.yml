@@ -33,7 +33,7 @@ jobs:
           done
 
       - name: Create test database
-        run: docker exec rio_db psql -U admin -d postgres -c "CREATE DATABASE rio_db_test;"
+        run: docker exec rio_db psql -U admin -d postgres -c "SELECT 1 FROM pg_database WHERE datname = 'rio_db_test'" | grep -q 1 || docker exec rio_db psql -U admin -d postgres -c "CREATE DATABASE rio_db_test;"
 
       - name: Linter (Flake8)
         run: |
