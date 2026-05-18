@@ -4,6 +4,7 @@ services:
     container_name: rio_db
     restart: always
     environment:
+      TZ: America/Argentina/Buenos_Aires
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
@@ -28,6 +29,8 @@ services:
     volumes:
       - ./api:/app/api
       - ./common:/app/common
+    environment:
+      TZ: America/Argentina/Buenos_Aires
     env_file:
       - .env
     depends_on:
@@ -47,6 +50,8 @@ services:
       - ./common:/app/common
     container_name: rio_scraper
     restart: always
+    environment:
+      TZ: America/Argentina/Buenos_Aires
     env_file: .env
     depends_on:
       db:
