@@ -3,14 +3,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from api.main import app, get_db
 from common.database import Base
-from common.models import Port, Measurement
+from common.models import (
+    Station, Measurement,
+    GaugePoint, GaugeDatum, ReferenceZeroType
+)
 from datetime import date
 from fastapi.testclient import TestClient
 import os
 
 DB_USER = os.getenv("DB_TEST_USER", "postgres")
 DB_PASS = os.getenv("DB_TEST_PASSWORD", "password")
-DB_NAME = os.getenv("DB_TEST_NAME", "rio_db")
+DB_NAME = os.getenv("DB_TEST_NAME", "rio_db_test")
 DB_HOST = os.getenv("DB_HOST", "db")
 
 DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:5432/{DB_NAME}"
@@ -21,6 +24,7 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
 
@@ -40,52 +44,77 @@ def db_session():
 
 @pytest.fixture(scope="function")
 def seed_data(db_session):
-    port_1 = Port(
+    # --- Datum infrastructure ---
+    ign_type = ReferenceZeroType(
+        id=1, code="IGN", name="Cero IGN",
+        description="Instituto Geográfico Nacional"
+    )
+    gauge_point = GaugePoint(id=1, name="TestPoint", river="testRiver")
+    # offset de +1.0: altura_IGN = altura_local + 1.0
+    gauge_datum = GaugeDatum(
         id=1,
-        name="testPort1",
+        gauge_point_id=1,
+        datum_type_id=1,
+        offset_local_to_datum=1.0,
+    )
+
+    # --- Stations ---
+    # station_1: tiene gauge_point → conversión disponible
+    station_1 = Station(
+        id=1,
+        name="testStation1",
         river="testRiver",
+        source="prefectura",
         alert_value=5.0,
         evacuation_value=7.0,
         latitud=30.00,
-        longitud=50.00
+        longitud=50.00,
+        gauge_point_id=1,
     )
-    port_2 = Port(
+    # station_2: sin gauge_point → sin conversión
+    station_2 = Station(
         id=2,
-        name="testPort2",
+        name="testStation2",
         river="testRiver",
+        source="prefectura",
         alert_value=3.0,
         evacuation_value=4.0,
         latitud=50.00,
-        longitud=30.00
+        longitud=30.00,
+        gauge_point_id=None,
     )
-    port_3 = Port(
+    # station_3: sin gauge_point, sin mediciones
+    station_3 = Station(
         id=3,
-        name="testPort3",
+        name="testStation3",
         river="testRiver",
+        source="prefectura",
         alert_value=5.0,
         evacuation_value=7.0,
         latitud=50.00,
-        longitud=30.00
+        longitud=30.00,
+        gauge_point_id=None,
     )
+
+    # --- Measurements ---
     measurement_1 = Measurement(
-        id=1,
-        port_id=1,
-        date_time=date(2026, 2, 21),
-        value=4.7,
+        id=1, station_id=1,
+        date_time=date(2026, 2, 21), value=4.7,
     )
     measurement_2 = Measurement(
-        id=2,
-        port_id=1,
-        date_time=date(2026, 2, 22),
-        value=5.1,
+        id=2, station_id=1,
+        date_time=date(2026, 2, 22), value=5.1,
     )
     measurement_3 = Measurement(
-        id=3,
-        port_id=2,
-        date_time=date(2026, 2, 22),
-        value=4.1,
+        id=3, station_id=2,
+        date_time=date(2026, 2, 22), value=4.1,
     )
-    db_session.add_all([port_1, port_2, port_3, measurement_1, measurement_2, measurement_3])
+
+    db_session.add_all([
+        ign_type, gauge_point, gauge_datum,
+        station_1, station_2, station_3,
+        measurement_1, measurement_2, measurement_3,
+    ])
     db_session.commit()
 
 

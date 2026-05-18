@@ -1,8 +1,8 @@
-from parser import IncrementalParser
+from scraper.prefectura.parser import PrefecturaIncrementalParser
 
 
 def test_parser_extracts_ports_and_measurements(html_ejemplo_prefectura):
-    parser = IncrementalParser()
+    parser = PrefecturaIncrementalParser()
 
     ports, measurements = parser.parse(html_ejemplo_prefectura)
 
@@ -15,12 +15,12 @@ def test_parser_extracts_ports_and_measurements(html_ejemplo_prefectura):
     assert puerto_colon.latitud == -32.22
 
     medicion_colon = measurements[0]
-    assert medicion_colon.port_name == "COLON"
+    assert medicion_colon.station_name == "COLON"
     assert medicion_colon.value == 2.15
 
 
 def test_parser_port_data_has_no_measurement_fields(html_ejemplo_prefectura):
-    parser = IncrementalParser()
+    parser = PrefecturaIncrementalParser()
     ports, _ = parser.parse(html_ejemplo_prefectura)
 
     puerto = ports[0]
@@ -31,7 +31,7 @@ def test_parser_port_data_has_no_measurement_fields(html_ejemplo_prefectura):
 
 
 def test_parser_manage_invalid_data(html_datos_invalidos):
-    parser = IncrementalParser()
+    parser = PrefecturaIncrementalParser()
 
     ports, measurements = parser.parse(html_datos_invalidos)
 
@@ -40,7 +40,7 @@ def test_parser_manage_invalid_data(html_datos_invalidos):
 
 
 def test_timestamp_conversion(html_ejemplo_prefectura):
-    parser = IncrementalParser()
+    parser = PrefecturaIncrementalParser()
     _, measurements = parser.parse(html_ejemplo_prefectura)
 
     ts = measurements[0].date_time
