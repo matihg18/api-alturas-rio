@@ -82,6 +82,7 @@ class INAParser:
 
                 measurements.append(RawMeasurementData(
                     station_name=station_name,
+                    source="ina",
                     date_time=dt,
                     value=float(valor),
                 ))

@@ -31,5 +31,6 @@ class RawStationData(BaseModel):
 class RawMeasurementData(BaseModel):
     """Datos de una medición individual."""
     station_name: str
+    source: str
     date_time: datetime
     value: Optional[float] = None

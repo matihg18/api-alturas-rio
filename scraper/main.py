@@ -1,14 +1,15 @@
+import os
+import time
+import logging
+from dataclasses import dataclass
+
 from scraper.prefectura.strategy import PrefecturaIncrementalStrategy, PrefecturaBackFillStrategy
 from scraper.ina.strategy import INAIncrementalStrategy, INABackFillStrategy
 from scraper.prefectura.syncer import PrefecturaStationSyncer
 from scraper.repository import ScraperRepository
 from scraper.context import ScraperContext
-from common.database import SessionLocal
 import scraper.config as config
-import os
-import time
-import logging
-from common.database import engine
+from common.database import SessionLocal, engine
 from common.models import Base
 from scraper.base import BaseStationSyncer
 
@@ -29,13 +30,35 @@ class NoOpStationSyncer(BaseStationSyncer):
         return []
 
 
+@dataclass
+class SourceRunner:
+    name: str
+    context: ScraperContext
+    interval: int          # segundos
+    last_run: float = 0.0  # timestamp epoch
+
+    def is_due(self) -> bool:
+        return time.time() - self.last_run >= self.interval
+
+    def run(self):
+        logger.info(f"=== Running source: {self.name} ===")
+        try:
+            self.context.execute()
+        except Exception as e:
+            logger.error(f"Source {self.name} failed: {e}", exc_info=True)
+        finally:
+            self.last_run = time.time()
+
+
 def main():
     mode = os.getenv("SCRAPER_MODE", "incremental")
     db = SessionLocal()
     repository = ScraperRepository(db)
-    prefectura_syncer = PrefecturaStationSyncer()
+    
+    runners = []
 
     # --- Fuente Prefectura Naval ---
+    prefectura_syncer = PrefecturaStationSyncer()
     if mode == "backfill":
         backfill_days = int(os.getenv("BACKFILL_DAYS", "7"))
         prefectura_strategy = PrefecturaBackFillStrategy(backfill_days)
@@ -43,7 +66,11 @@ def main():
         prefectura_strategy = PrefecturaIncrementalStrategy()
 
     context_prefectura = ScraperContext(prefectura_strategy, prefectura_syncer, repository)
-    context_prefectura.execute()
+    runners.append(SourceRunner(
+        name="Prefectura",
+        context=context_prefectura,
+        interval=config.PREFECTURA_INTERVAL,
+    ))
 
     # --- Fuente INA ---
     if config.INA_ENABLED:
@@ -55,13 +82,38 @@ def main():
             ina_strategy = INAIncrementalStrategy()
 
         context_ina = ScraperContext(ina_strategy, NoOpStationSyncer(), repository)
-        context_ina.execute()
+        runners.append(SourceRunner(
+            name="INA",
+            context=context_ina,
+            interval=config.INA_INTERVAL,
+        ))
 
-    logger.info(
-        f"Waiting {config.SCRAPER_INTERVAL} seconds "
-        f"until the next execution..."
-    )
-    time.sleep(config.SCRAPER_INTERVAL)
+    # --- Fuente CARU ---
+    from scraper.caru.strategy import CARUIncrementalStrategy, CARUBackFillStrategy
+    
+    if config.CARU_ENABLED:
+        logger.info("=== CARU source enabled ===")
+        if mode == "backfill":
+            backfill_days = int(os.getenv("BACKFILL_DAYS", "7"))
+            caru_strategy = CARUBackFillStrategy(backfill_days)
+        else:
+            caru_strategy = CARUIncrementalStrategy()
+
+        context_caru = ScraperContext(caru_strategy, NoOpStationSyncer(), repository)
+        runners.append(SourceRunner(
+            name="CARU",
+            context=context_caru,
+            interval=config.CARU_INTERVAL,
+        ))
+
+    # --- Bucle Principal (Scheduler) ---
+    logger.info(f"Starting scraper scheduler. Tick interval: {config.SCRAPER_TICK}s")
+    while True:
+        for runner in runners:
+            if runner.is_due():
+                runner.run()
+        
+        time.sleep(config.SCRAPER_TICK)
 
 
 if __name__ == "__main__":

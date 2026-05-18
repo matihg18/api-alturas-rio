@@ -13,8 +13,8 @@ import dataclasses
 
 @dataclasses.dataclass
 class Coordinates:
-    latitud: float
-    longitud: float
+    latitud: Optional[float]
+    longitud: Optional[float]
 
 
 class ReferenceZeroType(Base):
@@ -57,8 +57,8 @@ class Station(Base):
     name: Mapped[str] = mapped_column(String(100))
     river: Mapped[str] = mapped_column(String(50))
     source: Mapped[str] = mapped_column(String(50))
-    latitud: Mapped[float] = mapped_column("latitud", Float)
-    longitud: Mapped[float] = mapped_column("longitud", Float)
+    latitud: Mapped[Optional[float]] = mapped_column("latitud", Float, nullable=True)
+    longitud: Mapped[Optional[float]] = mapped_column("longitud", Float, nullable=True)
     coordinates: Mapped[Coordinates] = composite(
         Coordinates, latitud, longitud
     )
