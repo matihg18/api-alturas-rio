@@ -29,5 +29,5 @@ INA_INTERVAL = int(os.getenv("INA_INTERVAL", "3600"))
 # --- CARU ---
 CARU_BASE_URL = os.getenv("CARU_BASE_URL", "http://190.0.152.194:8080/alturas/web/user")
 CARU_ENABLED = os.getenv("CARU_ENABLED", "true").lower() == "true"
-CARU_INCREMENTAL_HOURS = int(os.getenv("CARU_INCREMENTAL_HOURS", "2"))
+CARU_INCREMENTAL_HOURS = int(os.getenv("CARU_INCREMENTAL_HOURS", "24"))
 CARU_INTERVAL = int(os.getenv("CARU_INTERVAL", "1800"))
