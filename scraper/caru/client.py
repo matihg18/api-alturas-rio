@@ -2,6 +2,7 @@ import requests
 import logging
 from typing import List, Optional
 from scraper.config import CARU_BASE_URL
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -35,21 +36,32 @@ class CARUClient:
 
     def get_station_history(self, station_id: str, days: int) -> str:
         url = f"{self.base_url}/altura/{station_id}"
-        rango_tiempo = "1 Semana"
+        
+        # Mapeo de days a opciones del combo (0=1 semana, 1=1 mes, 2=6 meses, 3=1 año)
+        intervalo = "0"
         if days > 7 and days <= 30:
-            rango_tiempo = "1 Mes"
+            intervalo = "1"
         elif days > 30 and days <= 180:
-            rango_tiempo = "6 Meses"
+            intervalo = "2"
         elif days > 180:
-            rango_tiempo = "1 Año"
+            intervalo = "3"
 
         try:
             response = self.session.get(url, timeout=TIMEOUT)
             response.raise_for_status()
-            logger.debug(f"CARU: fetch history for {station_id} (rango: {rango_tiempo})")
+            soup = BeautifulSoup(response.text, "html.parser")
+            token_input = soup.find("input", {"name": "form[_token]"})
+            token = token_input["value"] if token_input else ""
+
+            logger.debug(f"CARU: fetch history for {station_id} (intervalo: {intervalo})")
+            payload = {
+                "form[intervalo]": intervalo,
+                "form[escala]": "",  # Local
+                "form[_token]": token
+            }
             response = self.session.post(
                 url,
-                data={"form_tiempo": rango_tiempo},
+                data=payload,
                 timeout=TIMEOUT,
             )
             response.raise_for_status()

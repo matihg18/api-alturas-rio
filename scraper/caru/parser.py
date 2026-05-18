@@ -69,44 +69,39 @@ class CARUParser:
         self, html_content: str, station_name: str, since_hours: int
     ) -> List[RawMeasurementData]:
         measurements: List[RawMeasurementData] = []
-        soup = BeautifulSoup(html_content, "html.parser")
         
-        table = soup.find("table")
-        if not table:
-            logger.debug(f"CARU: no history table found for '{station_name}'")
+        match = re.search(r"var alturasJson = (\[.*?\]);", html_content, re.DOTALL)
+        if not match:
+            logger.debug(f"CARU: no alturasJson found for '{station_name}'")
             return []
             
-        tbody = table.find("tbody")
-        if not tbody:
+        try:
+            import json
+            data = json.loads(match.group(1))
+        except Exception as e:
+            logger.error(f"CARU: error parsing JSON for '{station_name}': {e}")
             return []
-            
-        rows = tbody.find_all("tr")
+
         cutoff_time = datetime.now() - timedelta(hours=since_hours)
         
-        for row in rows:
-            cols = row.find_all("td")
-            if len(cols) < 2:
+        for item in data:
+            fecha_hora_str = item.get("fecha")
+            valor = item.get("altura")
+            
+            if not fecha_hora_str or valor is None:
                 continue
                 
-            fecha_hora_str = cols[0].get_text(strip=True)
-            valor_str = cols[1].get_text(strip=True)
-            
             try:
                 dt = datetime.strptime(fecha_hora_str, "%d/%m/%Y %H:%M")
                 
                 if dt < cutoff_time:
                     continue
-                    
-                if valor_str in ("-", "", "S/D", None):
-                    continue
-                    
-                valor = float(valor_str.replace(",", "."))
                 
                 measurements.append(RawMeasurementData(
                     station_name=station_name,
                     source=SOURCE,
                     date_time=dt,
-                    value=valor,
+                    value=float(valor),
                 ))
             except Exception as e:
                 logger.debug(f"CARU: error parsing row for '{station_name}': {e}")

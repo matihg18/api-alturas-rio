@@ -46,12 +46,11 @@ class INAIncrementalStrategy(ScraperStrategy):
                 continue
 
             logger.info(
-                f"INA: fetching observations for '{station_name}' "
-                f"({timestart} → {timeend})"
+                f"INA: fetching history for '{station_name}' (last {config.INA_INCREMENTAL_HOURS}h)"
             )
             obs = self.client.get_observations(series_id, timestart, timeend)
             measurements = self.parser.parse_observations(obs, station_name)
-            logger.info(f"  -> {len(measurements)} observations")
+            logger.info(f"  -> {len(measurements)} valid observations found")
             all_measurements.extend(measurements)
 
         return stations, all_measurements
@@ -92,11 +91,11 @@ class INABackFillStrategy(ScraperStrategy):
                 continue
 
             logger.info(
-                f"INA: fetching {self.backfill_days}d history for '{station_name}'"
+                f"INA: fetching history for '{station_name}' (last {self.backfill_days * 24}h)"
             )
             obs = self.client.get_observations(series_id, timestart, timeend)
             measurements = self.parser.parse_observations(obs, station_name)
-            logger.info(f"  -> {len(measurements)} observations")
+            logger.info(f"  -> {len(measurements)} valid observations found")
             all_measurements.extend(measurements)
 
         return stations, all_measurements

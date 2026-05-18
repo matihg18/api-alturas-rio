@@ -78,7 +78,7 @@ class INAParser:
                 # La API devuelve ISO 8601 con 'Z' o offset
                 dt = datetime.fromisoformat(
                     timestart_raw.replace("Z", "+00:00")
-                ).astimezone(timezone.utc).replace(tzinfo=None)
+                ).astimezone().replace(tzinfo=None)
 
                 measurements.append(RawMeasurementData(
                     station_name=station_name,
