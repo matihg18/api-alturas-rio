@@ -1,6 +1,5 @@
 import requests
 import logging
-from typing import List, Optional
 from scraper.config import CARU_BASE_URL
 from bs4 import BeautifulSoup
 
@@ -13,11 +12,6 @@ class CARUClient:
     def __init__(self, base_url: str = CARU_BASE_URL):
         self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3",
-        })
 
     def get_main_page(self) -> str:
         url = f"{self.base_url}/alturas"
@@ -36,8 +30,6 @@ class CARUClient:
 
     def get_station_history(self, station_id: str, days: int) -> str:
         url = f"{self.base_url}/altura/{station_id}"
-        
-        # Mapeo de days a opciones del combo (0=1 semana, 1=1 mes, 2=6 meses, 3=1 año)
         intervalo = "0"
         if days > 7 and days <= 30:
             intervalo = "1"

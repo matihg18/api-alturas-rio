@@ -54,7 +54,6 @@ def main():
     mode = os.getenv("SCRAPER_MODE", "incremental")
     db = SessionLocal()
     repository = ScraperRepository(db)
-    
     runners = []
 
     # --- Fuente Prefectura Naval ---
@@ -90,7 +89,6 @@ def main():
 
     # --- Fuente CARU ---
     from scraper.caru.strategy import CARUIncrementalStrategy, CARUBackFillStrategy
-    
     if config.CARU_ENABLED:
         logger.info("=== CARU source enabled ===")
         if mode == "backfill":
@@ -119,7 +117,6 @@ def main():
         for runner in runners:
             if runner.is_due():
                 runner.run()
-        
         time.sleep(config.SCRAPER_TICK)
 
 

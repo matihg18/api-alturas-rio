@@ -33,27 +33,20 @@ class CARUBackFillStrategy(ScraperStrategy):
 def _fetch_caru_data(
     client: CARUClient, parser: CARUParser, hours: int
 ) -> Tuple[List[RawStationData], List[RawMeasurementData]]:
-    
     main_html = client.get_main_page()
     if not main_html:
         return [], []
-        
     stations_info = parser.parse_main_page(main_html)
     logger.info(f"CARU: found {len(stations_info)} stations on main page")
-    
     stations = parser.stations_to_raw_data(stations_info)
     all_measurements = []
-    
     for info in stations_info:
         station_name = info["name"]
         caru_id = info["caru_id"]
-        
         logger.info(f"CARU: fetching history for '{station_name}' (last {hours}h)")
         history_html = client.get_station_history(caru_id, days=max(1, hours // 24))
-        
         if history_html:
             measurements = parser.parse_history(history_html, station_name, since_hours=hours)
             logger.info(f"  -> {len(measurements)} valid observations found")
             all_measurements.extend(measurements)
-            
     return stations, all_measurements

@@ -1,7 +1,7 @@
 import logging
 import re
 from datetime import datetime, timedelta
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Dict, Any
 from bs4 import BeautifulSoup
 from scraper.schemas import RawStationData, RawMeasurementData
 
@@ -19,32 +19,26 @@ class CARUParser:
             tbody = table.find("tbody")
             if not tbody:
                 continue
-                
             rows = tbody.find_all("tr")
             for row in rows:
                 cols = row.find_all(["th", "td"])
                 if not cols:
                     continue
-                    
                 a_tag = cols[0].find("a")
                 if not a_tag or "href" not in a_tag.attrs:
                     continue
-                    
                 href = a_tag["href"]
                 match = re.search(r"/altura/(\d+)", href)
                 if not match:
                     continue
-                    
                 station_id = match.group(1)
                 name = a_tag.get_text(strip=True)
-                
                 stations_info.append({
                     "name": name,
                     "caru_id": station_id,
                     "river": "URUGUAY",
                     "source": SOURCE,
                 })
-                
         return stations_info
 
     def stations_to_raw_data(self, stations_info: List[Dict[str, Any]]) -> List[RawStationData]:
@@ -69,34 +63,26 @@ class CARUParser:
         self, html_content: str, station_name: str, since_hours: int
     ) -> List[RawMeasurementData]:
         measurements: List[RawMeasurementData] = []
-        
         match = re.search(r"var alturasJson = (\[.*?\]);", html_content, re.DOTALL)
         if not match:
             logger.debug(f"CARU: no alturasJson found for '{station_name}'")
             return []
-            
         try:
             import json
             data = json.loads(match.group(1))
         except Exception as e:
             logger.error(f"CARU: error parsing JSON for '{station_name}': {e}")
             return []
-
         cutoff_time = datetime.now() - timedelta(hours=since_hours)
-        
         for item in data:
             fecha_hora_str = item.get("fecha")
             valor = item.get("altura")
-            
             if not fecha_hora_str or valor is None:
                 continue
-                
             try:
                 dt = datetime.strptime(fecha_hora_str, "%d/%m/%Y %H:%M")
-                
                 if dt < cutoff_time:
                     continue
-                
                 measurements.append(RawMeasurementData(
                     station_name=station_name,
                     source=SOURCE,
@@ -105,5 +91,4 @@ class CARUParser:
                 ))
             except Exception as e:
                 logger.debug(f"CARU: error parsing row for '{station_name}': {e}")
-                
         return measurements
