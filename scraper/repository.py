@@ -68,7 +68,7 @@ class ScraperRepository:
             try:
                 station = (
                     self.db.query(Station)
-                    .filter(Station.name == raw_m.station_name)
+                    .filter(Station.name == raw_m.station_name, Station.source == raw_m.source)
                     .first()
                 )
 

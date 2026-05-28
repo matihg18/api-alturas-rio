@@ -112,6 +112,7 @@ def test_save_measurements_with_existing_station(db_session, monkeypatch):
     measurements = [
         RawMeasurementData(
             station_name="COLON",
+            source="prefectura",
             date_time=datetime(2026, 2, 14, 12, 0),
             value=2.15,
         )
@@ -131,6 +132,7 @@ def test_save_measurements_skips_unknown_station(db_session, monkeypatch):
     measurements = [
         RawMeasurementData(
             station_name="ESTACION_INEXISTENTE",
+            source="prefectura",
             date_time=datetime(2026, 2, 14, 12, 0),
             value=3.50,
         )
@@ -155,6 +157,7 @@ def test_no_duplicate_measurements(db_session, monkeypatch):
     measurement = [
         RawMeasurementData(
             station_name="COLON",
+            source="prefectura",
             date_time=datetime(2026, 2, 14, 12, 0),
             value=2.15,
         )

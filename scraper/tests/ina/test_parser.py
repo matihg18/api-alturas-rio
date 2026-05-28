@@ -152,7 +152,7 @@ def test_parse_observations_correct_fields(sample_observations):
 
     assert measurements[0].station_name == "La Paz"
     assert measurements[0].value == 3.27
-    expected_dt = datetime(2026, 4, 18, 3, 0, 0)
+    expected_dt = datetime.fromisoformat("2026-04-18T03:00:00.000+00:00").astimezone().replace(tzinfo=None)
     assert measurements[0].date_time == expected_dt
 
 

@@ -37,7 +37,7 @@ class PrefecturaBackFillStrategy(ScraperStrategy):
     def get_data(self) -> Tuple[List[RawStationData], List[RawMeasurementData]]:
         raw_data = self.client.fetch_data(self.url)
         ports = self.parser.parse_port_urls(raw_data)
-        logger.info(f"Found {len(ports)} stations with history URLs")
+        logger.info(f"PREFECTURA: found {len(ports)} stations with history URLs")
 
         all_measurements: List[RawMeasurementData] = []
 
@@ -46,10 +46,10 @@ class PrefecturaBackFillStrategy(ScraperStrategy):
                 continue
 
             history_url = self._build_history_url(port['history_url'])
-            logger.info(f"Fetching history for {port['name']} ({self.backfill_days} days)")
+            logger.info(f"PREFECTURA: fetching history for '{port['name']}' (last {self.backfill_days * 24}h)")
             raw_history = self.client.fetch_data(history_url)
             data = self.parser.parse_history_table(raw_history, port['name'])
-            logger.info(f"  -> {len(data)} measurements found")
+            logger.info(f"  -> {len(data)} valid observations found")
             all_measurements.extend(data)
 
         return [], all_measurements

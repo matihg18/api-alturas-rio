@@ -52,6 +52,7 @@ class PrefecturaIncrementalParser:
                 if value is not None:
                     measurements.append(RawMeasurementData(
                         station_name=item["PUERTO"],
+                        source="prefectura",
                         date_time=timestamp,
                         value=value,
                     ))
@@ -144,6 +145,7 @@ class PrefecturaBackFillParser:
                     continue
                 measurements.append(RawMeasurementData(
                     station_name=station_name,
+                    source="prefectura",
                     date_time=datetime.fromtimestamp(ts_ms / 1000.0),
                     value=float(val),
                 ))
