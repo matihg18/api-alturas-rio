@@ -1,6 +1,6 @@
 from sqlalchemy import select, desc, asc, func
 from sqlalchemy.orm import Session
-from common.models import Measurement, Station
+from common.models import Measurement, Station, ReferenceZeroType, GaugePoint
 from api.schemas import PagedResultResponse, PagingParams, DateFilters
 
 
@@ -107,3 +107,13 @@ class ApiRepository:
             .limit(1)
         )
         return self.db_session.execute(stmt).scalars().first()
+
+    def get_datum_types(self):
+        stmt = select(ReferenceZeroType)
+        return self.db_session.execute(stmt).scalars().all()
+
+    def get_gauge_point_for_station(self, station_id: int):
+        station = self.db_session.get(Station, station_id)
+        if not station or station.gauge_point_id is None:
+            return None
+        return self.db_session.get(GaugePoint, station.gauge_point_id)

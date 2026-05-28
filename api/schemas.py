@@ -46,6 +46,7 @@ class StationBase(BaseModel):
 
 class StationResponse(StationBase):
     id: int
+    gauge_point_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -57,4 +58,40 @@ class MeasurementBase(BaseModel):
 
 class MeasurementResponse(MeasurementBase):
     id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PagedMeasurementResponse(BaseModel):
+    total_count: int
+    datum_used: str = "LOCAL"
+    conversion_available: bool = False
+    items: List[MeasurementResponse]
+
+
+class LatestMeasurementResponse(MeasurementResponse):
+    datum_used: str = "LOCAL"
+    conversion_available: bool = False
+
+
+class ReferenceZeroTypeResponse(BaseModel):
+    id: int
+    code: str
+    name: str
+    description: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GaugeDatumResponse(BaseModel):
+    id: int
+    offset_local_to_datum: float
+    datum_type: ReferenceZeroTypeResponse
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GaugePointResponse(BaseModel):
+    id: int
+    name: str
+    river: Optional[str] = None
+    description: Optional[str] = None
+    datums: List[GaugeDatumResponse] = []
     model_config = ConfigDict(from_attributes=True)
