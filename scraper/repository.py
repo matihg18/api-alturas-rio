@@ -1,6 +1,8 @@
 import logging
+from datetime import datetime, timezone
+from typing import Optional
 from sqlalchemy.orm import Session
-from common.models import Station, Measurement
+from common.models import Station, Measurement, ScraperError
 from scraper.schemas import RawStationData, RawMeasurementData
 import scraper.config as config
 
@@ -103,3 +105,28 @@ class ScraperRepository:
         logger.info(
             f"MEASUREMENTS COMPLETED. {saved} SAVED, {skipped} SKIPPED (UNKNOWN STATIONS)."
         )
+
+    def log_error(
+        self,
+        source: str,
+        error_type: str,
+        error_message: str,
+        station_name: Optional[str] = None,
+        url: Optional[str] = None,
+        http_status_code: Optional[int] = None,
+    ) -> None:
+        try:
+            record = ScraperError(
+                source=source,
+                station_name=station_name,
+                error_type=error_type,
+                http_status_code=http_status_code,
+                url=url,
+                error_message=str(error_message),
+                occurred_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            )
+            self.db.add(record)
+            self.db.commit()
+        except Exception as e:
+            logger.error(f"FAILED TO LOG SCRAPER ERROR TO DB: {e}")
+            self.db.rollback()
