@@ -3,6 +3,7 @@ import scraper.config as config
 from scraper.repository import ScraperRepository
 from scraper.schemas import RawStationData, RawMeasurementData
 from common.models import Station, Measurement
+from common.models import ScraperError
 
 
 def test_sync_stations_creates_new_station(db_session, monkeypatch):
@@ -173,8 +174,6 @@ def test_no_duplicate_measurements(db_session, monkeypatch):
 
 # ─── Tests de log_error ───────────────────────────────────────────────────────
 
-from common.models import ScraperError
-
 
 def test_log_error_persists_record(db_session):
     repo = ScraperRepository(db_session)
@@ -220,9 +219,24 @@ def test_log_error_without_optional_fields(db_session):
 def test_log_error_multiple_records(db_session):
     repo = ScraperRepository(db_session)
 
-    repo.log_error(source="INA", error_type="TIMEOUT", error_message="timeout A", station_name="EST_A")
-    repo.log_error(source="INA", error_type="HTTP_ERROR", error_message="500 error", station_name="EST_B", http_status_code=500)
-    repo.log_error(source="CARU", error_type="PARSE_ERROR", error_message="bad html")
+    repo.log_error(
+        source="INA",
+        error_type="TIMEOUT",
+        error_message="timeout A",
+        station_name="EST_A"
+    )
+    repo.log_error(
+        source="INA",
+        error_type="HTTP_ERROR",
+        error_message="500 error",
+        station_name="EST_B",
+        http_status_code=500
+    )
+    repo.log_error(
+        source="CARU",
+        error_type="PARSE_ERROR",
+        error_message="bad html"
+    )
 
     errors = db_session.query(ScraperError).all()
     assert len(errors) == 3

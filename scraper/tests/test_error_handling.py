@@ -5,9 +5,8 @@ Verifica que cuando un cliente HTTP lanza una excepción, la estrategia:
   2. Continúa con las demás estaciones (no aborta el loop).
   3. Devuelve resultados parciales (las estaciones que sí funcionaron).
 """
-import pytest
 import requests
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 
 # ─── Prefectura Incremental ────────────────────────────────────────────────────

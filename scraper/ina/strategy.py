@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
 from scraper.base import ScraperStrategy, OnErrorCallback
 from scraper.schemas import RawStationData, RawMeasurementData

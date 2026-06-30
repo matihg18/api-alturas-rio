@@ -22,6 +22,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
 class NoOpStationSyncer(BaseStationSyncer):
     """Syncer vacío para estrategias que manejan su propio sync de estaciones."""
 

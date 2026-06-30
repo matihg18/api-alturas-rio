@@ -1,5 +1,4 @@
 import requests
-import pytest
 from scraper.errors import classify_error
 
 

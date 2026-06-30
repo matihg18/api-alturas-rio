@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Callable
+from typing import List, Tuple
 from scraper.prefectura.client import PrefecturaClient
 from scraper.prefectura.parser import (
     PrefecturaIncrementalParser,
