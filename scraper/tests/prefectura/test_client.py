@@ -1,3 +1,4 @@
+import pytest
 import requests
 from scraper.prefectura.client import PrefecturaClient
 
@@ -27,9 +28,8 @@ def test_fetch_data_http_error(mocker):
 
     client = PrefecturaClient()
 
-    result = client.fetch_data(url_test)
-
-    assert result == ""
+    with pytest.raises(requests.exceptions.HTTPError):
+        client.fetch_data(url_test)
 
 
 def test_fetch_data_timeout(mocker):
@@ -38,6 +38,5 @@ def test_fetch_data_timeout(mocker):
 
     client = PrefecturaClient()
 
-    result = client.fetch_data(url_test)
-
-    assert result == ""
+    with pytest.raises(requests.exceptions.Timeout):
+        client.fetch_data(url_test)

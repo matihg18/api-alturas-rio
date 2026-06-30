@@ -13,17 +13,6 @@ class PrefecturaClient:
             logger.error("URL NOT CONFIGURED")
             return ""
 
-        try:
-            response = requests.get(
-                url,
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-            return response.text
-        except Exception as e:
-            logger.error(f"ERROR FETCHING DATA: {e}")
-            if 'response' in locals():
-                logger.error(f"STATUS CODE: {response.status_code}")
-                res_text = getattr(response, 'text', '')
-                logger.error(f"RESPONSE TEXT: {str(res_text)[:200]}")
-            return ""
+        response = requests.get(url, timeout=self.timeout)
+        response.raise_for_status()
+        return response.text

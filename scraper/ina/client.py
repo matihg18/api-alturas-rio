@@ -44,9 +44,8 @@ class INAClient:
                 )
                 response.raise_for_status()
                 data = response.json()
-            except Exception as e:
-                logger.error(f"INA: error fetching series (offset={offset}): {e}")
-                break
+            except Exception:
+                raise
 
             rows = data.get("rows", [])
             if not rows:
@@ -75,18 +74,10 @@ class INAClient:
         timestart: str,
         timeend: str,
     ) -> List[dict]:
-        """
-        Obtiene las observaciones de una serie en el rango [timestart, timeend].
-        Formato de fechas: ISO 8601 (e.g. '2026-04-17T00:00:00Z').
-        """
-        try:
-            response = self.session.get(
-                f"{self.base_url}/obs/puntual/series/{series_id}/observaciones",
-                params={"timestart": timestart, "timeend": timeend},
-                timeout=TIMEOUT,
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"INA: error fetching observations for series {series_id}: {e}")
-            return []
+        response = self.session.get(
+            f"{self.base_url}/obs/puntual/series/{series_id}/observaciones",
+            params={"timestart": timestart, "timeend": timeend},
+            timeout=TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json()

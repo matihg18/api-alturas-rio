@@ -22,7 +22,7 @@ class ScraperContext:
         self.repository.sync_stations(station_data)
 
         logger.info("=== PHASE 2: Collecting measurements ===")
-        stations, measurements = self.strategy.get_data()
+        stations, measurements = self.strategy.get_data(on_error=self.repository.log_error)
         if stations:
             self.repository.sync_stations(stations)
 
