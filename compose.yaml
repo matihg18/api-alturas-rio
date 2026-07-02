@@ -59,6 +59,19 @@ services:
     networks:
       - rio_network
 
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: rio_dashboard
+    restart: always
+    ports:
+      - "${DASHBOARD_PORT:-3000}:80"
+    depends_on:
+      - api
+    networks:
+      - rio_network
+
 networks:
   rio_network:
     driver: bridge
