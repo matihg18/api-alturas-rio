@@ -76,6 +76,38 @@ def test_sync_stations_filters_by_river(db_session, monkeypatch):
     assert result[0].name == "COLON"
 
 
+def test_sync_stations_filters_by_multiple_rivers(db_session, monkeypatch):
+    monkeypatch.setattr(config, "ALLOWED_RIVERS", ["URUGUAY", "GUALEGUAYCHU"])
+    repo = ScraperRepository(db_session)
+
+    stations = [
+        RawStationData(
+            PUERTO="ROSARIO", RIO="PARANA",
+            LATITUD=-32.94, LONGITUD=-60.63
+        ),
+        RawStationData.model_construct(
+            name="Puerto Local - Gualeguaychú",
+            river="GUALEGUAYCHU",
+            source="municipalidad_gchu",
+            latitud=None,
+            longitud=None,
+            alert_value=None,
+            evacuation_value=None
+        ),
+        RawStationData(
+            PUERTO="COLON", RIO="URUGUAY",
+            LATITUD=-32.22, LONGITUD=-58.13
+        ),
+    ]
+
+    repo.sync_stations(stations)
+
+    result = db_session.query(Station).all()
+    assert len(result) == 2
+    names = {r.name for r in result}
+    assert names == {"Puerto Local - Gualeguaychú", "COLON"}
+
+
 def test_sync_stations_dedup_by_name_and_source(db_session, monkeypatch):
     monkeypatch.setattr(config, "ALLOWED_RIVERS", [])
     repo = ScraperRepository(db_session)
