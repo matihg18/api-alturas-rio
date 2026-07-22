@@ -298,7 +298,12 @@ def test_log_error_multiple_records(db_session):
     repo = ScraperRepository(db_session)
 
     repo.log_error(source="INA", error_type="TIMEOUT", error_message="timeout A", station_name="EST_A")
-    repo.log_error(source="INA", error_type="HTTP_ERROR", error_message="500 error", station_name="EST_B", http_status_code=500)
+    repo.log_error(
+        source="INA",
+        error_type="HTTP_ERROR",
+        error_message="500 error",
+        station_name="EST_B", http_status_code=500
+    )
     repo.log_error(source="CARU", error_type="PARSE_ERROR", error_message="bad html")
 
     errors = db_session.query(ScraperError).all()

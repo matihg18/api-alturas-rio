@@ -15,7 +15,8 @@ def is_river_allowed(station_river: str, allowed_rivers: list[str]) -> bool:
     Soporta:
     - Coincidencia exacta (ej: 'URUGUAY' == 'Uruguay')
     - Coincidencia de palabra completa (ej: 'PARANA' en 'Delta del Paraná')
-    - Variaciones/secciones concatenadas de fuentes como INA (ej: 'PARANAMED', 'PARANAINF', 'PARANADELASPALMAS', 'PARANAGUAZU', etc.)
+    - Variaciones/secciones concatenadas de fuentes como INA (ej: 'PARANAMED', 'PARANAINF',
+      'PARANADELASPALMAS', 'PARANAGUAZU', etc.)
     """
     if not allowed_rivers:
         return True
