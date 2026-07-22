@@ -104,6 +104,26 @@ def main():
             interval=config.CARU_INTERVAL,
         ))
 
+    # --- Fuente Municipalidad de Gualeguaychú ---
+    from scraper.municipalidadgchu.strategy import (
+        MunicipalidadGchuIncrementalStrategy,
+        MunicipalidadGchuBackFillStrategy,
+    )
+    if config.MUNICIPALIDAD_GCHU_ENABLED:
+        logger.info("=== Municipalidad Gualeguaychú source enabled ===")
+        if mode == "backfill":
+            backfill_days = int(os.getenv("BACKFILL_DAYS", "7"))
+            mgchu_strategy = MunicipalidadGchuBackFillStrategy(backfill_days)
+        else:
+            mgchu_strategy = MunicipalidadGchuIncrementalStrategy()
+
+        context_mgchu = ScraperContext(mgchu_strategy, NoOpStationSyncer(), repository)
+        runners.append(SourceRunner(
+            name="Municipalidad Gualeguaychú",
+            context=context_mgchu,
+            interval=config.MUNICIPALIDAD_GCHU_INTERVAL,
+        ))
+
     # --- Bucle Principal (Scheduler) ---
     if mode == "backfill":
         logger.info(f"Running ONE-SHOT backfill mode for {os.getenv('BACKFILL_DAYS', '7')} days")
