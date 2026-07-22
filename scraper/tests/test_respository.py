@@ -108,8 +108,6 @@ def test_sync_stations_filters_by_multiple_rivers(db_session, monkeypatch):
     assert names == {"Puerto Local - Gualeguaychú", "COLON"}
 
 
-
-
 def test_sync_stations_dedup_by_name_and_source(db_session, monkeypatch):
     monkeypatch.setattr(config, "ALLOWED_RIVERS", [])
     repo = ScraperRepository(db_session)
