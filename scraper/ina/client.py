@@ -1,6 +1,6 @@
 import requests
 import logging
-from typing import List, Optional
+from typing import List
 from scraper.config import INA_API_BASE_URL
 
 logger = logging.getLogger(__name__)
@@ -10,22 +10,12 @@ PAGE_SIZE = 200
 
 
 class INAClient:
-    """Cliente HTTP para la API REST de alerta.ina.gob.ar/a5."""
-
     def __init__(self, base_url: str = INA_API_BASE_URL):
         self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
         self.session.headers.update({"Accept": "application/json"})
 
-    def get_series(
-        self,
-        var_id: int,
-        rivers: Optional[List[str]] = None,
-    ) -> List[dict]:
-        """
-        Obtiene todas las series de la variable indicada, con paginación automática.
-        Filtra por río si se provee la lista rivers.
-        """
+    def get_series(self, var_id: int) -> List[dict]:
         all_rows = []
         offset = 0
 
@@ -50,13 +40,6 @@ class INAClient:
             rows = data.get("rows", [])
             if not rows:
                 break
-
-            if rivers:
-                normalized = [r.upper() for r in rivers]
-                rows = [
-                    r for r in rows
-                    if ((r.get("estacion") or {}).get("rio") or "").upper() in normalized
-                ]
 
             all_rows.extend(rows)
 

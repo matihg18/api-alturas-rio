@@ -5,9 +5,10 @@ from scraper.prefectura.parser import (
     PrefecturaBackFillParser,
 )
 from scraper.schemas import RawStationData, RawMeasurementData
-from scraper.config import MAP_URL, BASE_SOURCE_URL, BASE_DOMAIN, ALLOWED_RIVERS
+from scraper.config import MAP_URL, BASE_SOURCE_URL, BASE_DOMAIN
 from scraper.errors import classify_error
 from scraper.base import OnErrorCallback
+from scraper.utils import is_river_allowed, normalize_river
 import re
 import logging
 from scraper.base import ScraperStrategy
@@ -46,12 +47,12 @@ class PrefecturaIncrementalStrategy(ScraperStrategy):
 
 
 class PrefecturaBackFillStrategy(ScraperStrategy):
-    def __init__(self, backfill_days: int):
+    def __init__(self, backfill_days: int, allowed_rivers: list[str] | None = None):
         self.client = PrefecturaClient()
         self.parser = PrefecturaBackFillParser(BASE_DOMAIN)
         self.backfill_days = backfill_days
         self.url = BASE_SOURCE_URL
-        self.allowed_rivers = ALLOWED_RIVERS
+        self.allowed_rivers = [normalize_river(r) for r in (allowed_rivers or [])]
 
     def _build_history_url(self, original_url: str) -> str:
         return re.sub(r'tiempo=\d+', f'tiempo={self.backfill_days}', original_url)
@@ -82,7 +83,7 @@ class PrefecturaBackFillStrategy(ScraperStrategy):
         all_measurements: List[RawMeasurementData] = []
 
         for port in ports:
-            if self.allowed_rivers and port['river'] not in self.allowed_rivers:
+            if self.allowed_rivers and not is_river_allowed(port['river'], self.allowed_rivers):
                 continue
 
             history_url = self._build_history_url(port['history_url'])

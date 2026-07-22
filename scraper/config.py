@@ -16,7 +16,7 @@ ALLOWED_RIVERS = (
 
 # Intervalos globales
 SCRAPER_TICK = int(os.getenv("SCRAPER_TICK", "60"))
-SCRAPER_INTERVAL = int(os.getenv("SCRAPER_INTERVAL", "43200"))
+PREFECTURA_ENABLED = os.getenv("PREFECTURA_ENABLED", "true").lower() == "true"
 PREFECTURA_INTERVAL = int(os.getenv("PREFECTURA_INTERVAL", "43200"))
 
 # --- INA API ---

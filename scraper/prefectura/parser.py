@@ -44,7 +44,15 @@ class PrefecturaIncrementalParser:
             measurements = []
 
             for item in raw_list:
-                stations.append(RawStationData(**item))
+                stations.append(RawStationData(
+                    name=item["PUERTO"],
+                    river=item["RIO"],
+                    source="prefectura",
+                    latitud=float(item["LATITUD"]) if item.get("LATITUD") is not None else None,
+                    longitud=float(item["LONGITUD"]) if item.get("LONGITUD") is not None else None,
+                    alert_value=item.get("ALERTA"),
+                    evacuation_value=item.get("EVACUACION"),
+                ))
 
                 timestamp = self._parse_timestamp(item.get("FECHAHORA", ""))
                 value = self._parse_float(item.get("ULTIMOREGISTRO"))

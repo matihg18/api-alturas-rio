@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 from datetime import datetime
 from typing import Optional, Any
 import logging
@@ -7,14 +7,13 @@ logger = logging.getLogger(__name__)
 
 
 class RawStationData(BaseModel):
-    """Datos de una estación (sin mediciones)."""
-    name: str = Field(alias="PUERTO")
-    river: str = Field(alias="RIO")
-    source: str = "prefectura"
-    latitud: float = Field(alias="LATITUD")
-    longitud: float = Field(alias="LONGITUD")
-    alert_value: Optional[float] = Field(None, alias="ALERTA")
-    evacuation_value: Optional[float] = Field(None, alias="EVACUACION")
+    name: str
+    river: str
+    source: str
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    alert_value: Optional[float] = None
+    evacuation_value: Optional[float] = None
 
     @field_validator("alert_value", "evacuation_value", mode="before")
     @classmethod
@@ -29,7 +28,6 @@ class RawStationData(BaseModel):
 
 
 class RawMeasurementData(BaseModel):
-    """Datos de una medición individual."""
     station_name: str
     source: str
     date_time: datetime
