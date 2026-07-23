@@ -11,31 +11,94 @@ interface StationDetailProps {
 }
 
 export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, history }) => {
-  // ── Estado de datum ──────────────────────────────────────
   const [gaugePoint, setGaugePoint] = React.useState<GaugePoint | null>(null);
-  /** Code del datum seleccionado actualmente, o null para Cero Local */
   const [selectedDatum, setSelectedDatum] = React.useState<string | null>(null);
   const [isDatumLoading, setIsDatumLoading] = React.useState(false);
-
-  // ── Estado de filtrado por período ────────────────────────
   const [fromDate, setFromDate] = React.useState('');
   const [toDate, setToDate] = React.useState('');
   const [isFiltered, setIsFiltered] = React.useState(false);
   const [isQueryLoading, setIsQueryLoading] = React.useState(false);
-
-  // Datos que se muestran (pueden ser los de props o los re-consultados con datum)
   const [displayLatest, setDisplayLatest] = React.useState<LatestMeasurement | null>(latest);
   const [displayHistory, setDisplayHistory] = React.useState<Measurement[]>(history);
   const [displayDatumUsed, setDisplayDatumUsed] = React.useState<string>('LOCAL');
-
-  // ── Paginación y hover ───────────────────────────────────
   const [currentPage, setCurrentPage] = React.useState(1);
   const [hoveredPoint, setHoveredPoint] = React.useState<null | {
     x: number; y: number; height: number; timestamp: string;
   }>(null);
-  const itemsPerPage = 5;
+  const itemsPerPage = 20;
 
-  // ── Al cambiar de estación: resetear todo y cargar gauge point ────────────
+  const fetchRecent = React.useCallback(async (datumCode: string | null) => {
+    const today = new Date();
+    const monthAgo = new Date(today);
+    monthAgo.setDate(today.getDate() - 30);
+    const fromIso = monthAgo.toISOString().slice(0, 10);
+
+    setIsQueryLoading(true);
+    try {
+      const result = await apiClient.getMeasurements(
+        station.id,
+        100,
+        0,
+        datumCode || undefined,
+        fromIso,
+        undefined,
+      );
+      if (datumCode) setDisplayDatumUsed(result.datum_used);
+      setDisplayHistory(result.items);
+    } catch (err) {
+      console.error('Error al obtener mediciones recientes:', err);
+    } finally {
+      setIsQueryLoading(false);
+    }
+  }, [station.id]);
+
+  const fetchAll = React.useCallback(async (
+    datumCode: string | null,
+    from: string,
+    to: string,
+  ) => {
+    const chunkSize = 100;
+    setIsQueryLoading(true);
+    try {
+      const first = await apiClient.getMeasurements(
+        station.id,
+        chunkSize,
+        0,
+        datumCode || undefined,
+        from || undefined,
+        to || undefined,
+      );
+      if (datumCode) setDisplayDatumUsed(first.datum_used);
+
+      const total = first.total_count;
+      let allItems = [...first.items];
+
+      if (total > chunkSize) {
+        const pages = Math.ceil(total / chunkSize);
+        const rest = await Promise.all(
+          Array.from({ length: pages - 1 }, (_, i) =>
+            apiClient.getMeasurements(
+              station.id,
+              chunkSize,
+              (i + 1) * chunkSize,
+              datumCode || undefined,
+              from || undefined,
+              to || undefined,
+            )
+          )
+        );
+        for (const page of rest) allItems = allItems.concat(page.items);
+        allItems.sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+      }
+
+      setDisplayHistory(allItems);
+    } catch (err) {
+      console.error('Error al obtener mediciones:', err);
+    } finally {
+      setIsQueryLoading(false);
+    }
+  }, [station.id]);
+
   React.useEffect(() => {
     setSelectedDatum(null);
     setGaugePoint(null);
@@ -44,149 +107,77 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     setToDate('');
     setIsFiltered(false);
     setDisplayLatest(latest);
-    setDisplayHistory(history);
     setDisplayDatumUsed('LOCAL');
 
-    // Solo intentamos si la estación tiene gauge_point_id
     if (station.gauge_point_id !== null) {
       apiClient.getGaugePoint(station.id)
         .then(setGaugePoint)
         .catch(() => setGaugePoint(null));
     }
-  }, [station.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [station.id]);
 
-  // ── Cuando los props se actualizan por el polling, reflejar si estamos en local y no filtrado ──
+  React.useEffect(() => {
+    fetchRecent(null);
+  }, [station.id]);
+
   React.useEffect(() => {
     if (selectedDatum === null && !isFiltered) {
       setDisplayLatest(latest);
-      setDisplayHistory(history);
       setDisplayDatumUsed('LOCAL');
     }
-  }, [latest, history, selectedDatum, isFiltered]);
+  }, [latest, selectedDatum, isFiltered]);
 
-  // ── Al cambiar datum: re-consultar a la API con conversión ────────────────
   const handleDatumChange = async (datumCode: string | null) => {
     if (datumCode === selectedDatum) return;
     setSelectedDatum(datumCode);
     setCurrentPage(1);
 
     if (datumCode === null) {
-      if (isFiltered) {
-        setIsDatumLoading(true);
-        try {
-          const histResult = await apiClient.getMeasurements(
-            station.id,
-            100,
-            0,
-            undefined,
-            fromDate || undefined,
-            toDate || undefined
-          );
-          setDisplayHistory(histResult.items);
-        } catch (err) {
-          console.error('Error al recargar histórico sin datum:', err);
-        } finally {
-          setIsDatumLoading(false);
-        }
-      } else {
-        setDisplayHistory(history);
-      }
       setDisplayLatest(latest);
       setDisplayDatumUsed('LOCAL');
+      if (isFiltered) {
+        await fetchAll(null, fromDate, toDate);
+      } else {
+        await fetchRecent(null);
+      }
       return;
     }
 
     setIsDatumLoading(true);
     try {
-      const [histResult, latestResult] = await Promise.all([
-        apiClient.getMeasurements(
-          station.id,
-          100,
-          0,
-          datumCode,
-          fromDate || undefined,
-          toDate || undefined
-        ),
-        apiClient.getLatestMeasurement(station.id, datumCode),
-      ]);
-      setDisplayHistory(histResult.items);
+      const latestResult = await apiClient.getLatestMeasurement(station.id, datumCode);
       setDisplayLatest(latestResult);
       setDisplayDatumUsed(latestResult.datum_used);
     } catch (err) {
-      console.error('Error al convertir datum:', err);
+      console.error('Error al obtener última medición con datum:', err);
       setSelectedDatum(null);
-      if (isFiltered) {
-        try {
-          const histResult = await apiClient.getMeasurements(
-            station.id,
-            100,
-            0,
-            undefined,
-            fromDate || undefined,
-            toDate || undefined
-          );
-          setDisplayHistory(histResult.items);
-        } catch {
-          setDisplayHistory(history);
-        }
-      } else {
-        setDisplayHistory(history);
-      }
       setDisplayLatest(latest);
       setDisplayDatumUsed('LOCAL');
     } finally {
       setIsDatumLoading(false);
     }
-  };
-
-  // ── Consultar período personalizado ───────────────────────
-  const handleQuery = async () => {
-    if (!fromDate && !toDate) return;
-    setIsQueryLoading(true);
-    try {
-      const histResult = await apiClient.getMeasurements(
-        station.id,
-        100,
-        0,
-        selectedDatum || undefined,
-        fromDate || undefined,
-        toDate || undefined
-      );
-      setDisplayHistory(histResult.items);
-      setIsFiltered(true);
-      setCurrentPage(1);
-    } catch (err) {
-      console.error('Error al consultar período:', err);
-    } finally {
-      setIsQueryLoading(false);
+    if (isFiltered) {
+      await fetchAll(datumCode, fromDate, toDate);
+    } else {
+      await fetchRecent(datumCode);
     }
   };
 
-  // ── Limpiar filtro y volver a vista estándar ─────────────
+  const handleQuery = async () => {
+    if (!fromDate && !toDate) return;
+    setIsFiltered(true);
+    setCurrentPage(1);
+    await fetchAll(selectedDatum, fromDate, toDate);
+  };
+
   const handleClear = async () => {
     setFromDate('');
     setToDate('');
     setIsFiltered(false);
     setCurrentPage(1);
-
-    if (selectedDatum === null) {
-      setDisplayHistory(history);
-    } else {
-      setIsDatumLoading(true);
-      try {
-        const histResult = await apiClient.getMeasurements(station.id, 100, 0, selectedDatum);
-        setDisplayHistory(histResult.items);
-      } catch (err) {
-        console.error('Error al restaurar histórico:', err);
-        setDisplayHistory(history);
-        setSelectedDatum(null);
-      } finally {
-        setIsDatumLoading(false);
-      }
-    }
+    await fetchRecent(selectedDatum);
   };
 
-  // ── Formateo de fechas ───────────────────────────────────
   const formatDate = (isoString: string) => {
     const d = new Date(isoString);
     return d.toLocaleString('es-AR', {
@@ -195,13 +186,11 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     });
   };
 
-  /** Muestra DD/MM/AA en el eje X; la hora exacta está disponible en el tooltip de hover. */
   const formatXLabel = (isoString: string): string => {
     const d = new Date(isoString);
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
   };
 
-  // ── Gráfico SVG ──────────────────────────────────────────
   const chartWidth = 1000;
   const chartHeight = 280;
   const chartPadding = { top: 20, right: 20, bottom: 35, left: 40 };
@@ -239,7 +228,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
 
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => parseFloat((minVal + f * yRange).toFixed(1)));
 
-  // ── Paginación ───────────────────────────────────────────
   const sortedHistory = React.useMemo(
     () => [...displayHistory].sort((a, b) => new Date(b.date_time).getTime() - new Date(a.date_time).getTime()),
     [displayHistory]
@@ -248,7 +236,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedHistory = sortedHistory.slice(startIndex, startIndex + itemsPerPage);
 
-  // ── Etiqueta del datum activo ─────────────────────────────
   const datumLabel = selectedDatum === null
     ? 'Cero Local'
     : (gaugePoint?.datums.find(d => d.datum_type.code === selectedDatum)?.datum_type.name ?? selectedDatum);
@@ -256,7 +243,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
 
-      {/* ── Header ─────────────────────────────────────────── */}
       <div className="card-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
@@ -273,10 +259,8 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
         </div>
       </div>
 
-      {/* ── Indicadores ────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
 
-        {/* Telemetría + cero de referencia */}
         <div className="card-panel" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '250px', padding: '2rem' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Nivel de Agua Observado
@@ -295,7 +279,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
             )}
           </div>
 
-          {/* Selector dinámico de cero de referencia */}
           <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.2rem', marginTop: '0.5rem' }}>
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.6rem' }}>
               <span>Cero de Referencia</span>
@@ -303,7 +286,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
             </span>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', background: '#090D16', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '2px', width: 'fit-content' }}>
-              {/* Botón: Cero Local (siempre disponible) */}
               {renderDatumButton(
                 'LOCAL',
                 'Cero Local',
@@ -312,7 +294,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 () => handleDatumChange(null),
               )}
 
-              {/* Botones dinámicos por cada datum disponible en el gauge point */}
               {gaugePoint !== null
                 ? gaugePoint.datums.map((gd) =>
                   renderDatumButton(
@@ -324,9 +305,8 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                   )
                 )
                 : station.gauge_point_id === null
-                  ? null // Sin gauge point → sin botones extra
+                  ? null
                   : (
-                    // Gauge point asignado pero aún cargando
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', padding: '0.45rem 0.6rem' }}>
                       Cargando datums…
                     </span>
@@ -345,7 +325,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
           </div>
         </div>
 
-        {/* Parámetros de referencia */}
         <div className="card-panel" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '250px' }}>
           <h3 style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '1.2rem' }}>
             Parámetros de Referencia
@@ -366,13 +345,10 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
         </div>
       </div>
 
-      {/* ── Gráfico ─────────────────────────────────────────── */}
       <div className="card-panel">
         <h3 style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '1.2rem' }}>
           Evolución del Nivel
         </h3>
-
-        {/* Filtro de período */}
         <div style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -514,7 +490,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
               )}
 
               {displayHistory.length > 1 && (() => {
-                // 8 ticks distribuidos uniformemente; primero anclado a la izq, último a la der
                 const n = Math.min(8, displayHistory.length);
                 const tickIndices = Array.from({ length: n }, (_, i) =>
                   i === 0 ? 0
@@ -569,7 +544,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
         )}
       </div>
 
-      {/* ── Tabla histórica ─────────────────────────────────── */}
       <div className="card-panel">
         <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
@@ -597,7 +571,13 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedHistory.map((m) => (
+                  {isQueryLoading ? (
+                    <tr>
+                      <td colSpan={2} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                        Cargando…
+                      </td>
+                    </tr>
+                  ) : paginatedHistory.map((m) => (
                     <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
                       <td style={{ padding: '0.6rem 0.4rem', color: 'var(--text-secondary)' }}>{formatDate(m.date_time)}</td>
                       <td className="mono" style={{ textAlign: 'right', padding: '0.6rem 0.4rem', fontWeight: '600', color: 'var(--text-primary)' }}>
@@ -611,13 +591,13 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.2rem' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Mostrando {startIndex + 1}–{Math.min(startIndex + itemsPerPage, sortedHistory.length)} de {sortedHistory.length} registros
+                Mostrando {sortedHistory.length === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + itemsPerPage, sortedHistory.length)} de {sortedHistory.length} registros
               </span>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="btn btn-secondary" style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem' }}>
+                <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1 || isQueryLoading} className="btn btn-secondary" style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem' }}>
                   Anterior
                 </button>
-                <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="btn btn-secondary" style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem' }}>
+                <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || isQueryLoading} className="btn btn-secondary" style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem' }}>
                   Siguiente
                 </button>
               </div>
@@ -629,7 +609,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
   );
 };
 
-// ── Helpers de render ────────────────────────────────────────────────────────
 
 function renderDatumButton(
   code: string,
