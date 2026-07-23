@@ -4,7 +4,6 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from common.models import Station, Measurement, ScraperError
 from scraper.schemas import RawStationData, RawMeasurementData
-import scraper.config as config
 
 logger = logging.getLogger(__name__)
 
@@ -14,15 +13,8 @@ class ScraperRepository:
         self.db = session
 
     def sync_stations(self, stations: list[RawStationData]):
-        allowed = config.ALLOWED_RIVERS
         count = 0
         for raw_station in stations:
-            if allowed and raw_station.river.upper() not in allowed:
-                logger.debug(
-                    f"SKIPPING STATION {raw_station.name} "
-                    f"(RIVER {raw_station.river} NOT ALLOWED)"
-                )
-                continue
             try:
                 station = (
                     self.db.query(Station)
