@@ -23,6 +23,10 @@ class ApiRepository:
                 stmt = stmt.order_by(desc(col_attr))
             else:
                 stmt = stmt.order_by(asc(col_attr))
+        else:
+            # Sin criterio explícito, ordenar por id para garantizar orden
+            # estable independientemente de actualizaciones (MVCC de Postgres)
+            stmt = stmt.order_by(asc(model.id))
 
         return stmt.offset(paging.skip).limit(paging.limit)
 

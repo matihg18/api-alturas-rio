@@ -13,13 +13,14 @@ from api.schemas import (
 )
 from api.repository import ApiRepository
 from api.rate_limiter import limiter, rate_limit_exceeded_handler, RATE_LIMIT_DEFAULT
-from common.database import SessionLocal
+from api.dependencies import get_db
 from common.datum_service import get_offset, convert as datum_convert
 from sqlalchemy.orm import Session
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from common.database import engine
 from common.models import Base
+from api.admin_router import router as admin_router
 from contextlib import asynccontextmanager
 
 
@@ -33,13 +34,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+app.include_router(admin_router, prefix="/admin", tags=["admin"])
 
 
 def _get_datum_context(db: Session, station_id: int, datum: Optional[str]):

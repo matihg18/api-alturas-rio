@@ -36,8 +36,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
     networks:
       - rio_network
 
@@ -67,6 +65,19 @@ services:
     restart: always
     ports:
       - "${DASHBOARD_PORT:-3000}:80"
+    depends_on:
+      - api
+    networks:
+      - rio_network
+
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: rio_admin
+    restart: always
+    ports:
+      - "${ADMIN_PORT:-8080}:80"
     depends_on:
       - api
     networks:

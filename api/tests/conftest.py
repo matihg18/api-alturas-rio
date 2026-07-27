@@ -1,8 +1,10 @@
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from api.main import app, get_db
+from api.main import app
+from api.dependencies import get_db
 from common.database import Base
+
 from common.models import (
     Station, Measurement,
     GaugePoint, GaugeDatum, ReferenceZeroType
@@ -115,6 +117,15 @@ def seed_data(db_session):
         station_1, station_2, station_3,
         measurement_1, measurement_2, measurement_3,
     ])
+    db_session.commit()
+
+    # Reset postgres sequences so auto-increment works after manual ID assignment
+    from sqlalchemy import text
+    tables = ["reference_zero_types", "gauge_points", "gauge_datums", "stations", "measurements"]
+    for table in tables:
+        db_session.execute(text(
+            f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), coalesce(max(id), 1)) FROM {table};"
+        ))
     db_session.commit()
 
 
