@@ -129,7 +129,6 @@ def seed_data(db_session):
     db_session.commit()
 
 
-
 @pytest.fixture(scope="function")
 def client(db_session):
     def override_get_db():

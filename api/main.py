@@ -37,8 +37,6 @@ app.add_middleware(SlowAPIMiddleware)
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
 
 
-
-
 def _get_datum_context(db: Session, station_id: int, datum: Optional[str]):
     if not datum:
         return None, "LOCAL", False

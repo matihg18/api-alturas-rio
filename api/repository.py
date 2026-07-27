@@ -30,7 +30,6 @@ class ApiRepository:
 
         return stmt.offset(paging.skip).limit(paging.limit)
 
-
     def get_station_list(self, paging: PagingParams):
         base_stmt = select(Station)
         total_count = self.db_session.execute(

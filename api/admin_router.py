@@ -19,10 +19,8 @@ from api.admin_schemas import (
 from api.dependencies import get_db
 
 router = APIRouter()
-
-
-
 # ── Stations ─────────────────────────────────────────────────────────────────
+
 
 @router.get("/stations", response_model=List[StationAdminResponse])
 def admin_list_stations(db: Session = Depends(get_db)):
