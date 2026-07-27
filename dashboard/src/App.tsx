@@ -3,13 +3,12 @@ import { apiClient, Station, Measurement, LatestMeasurement } from './services/a
 import { StationDetail } from './components/StationDetail';
 import {
   Droplet,
-  CheckCircle2,
   RefreshCw,
-  Radio,
   AlertTriangle,
   X,
   Menu,
 } from 'lucide-react';
+
 
 interface StationWithLatest extends Station {
   latest: LatestMeasurement | null;
@@ -26,7 +25,6 @@ function App() {
 
   const [status, setStatus] = useState<AppStatus>('loading');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   const fetchStations = useCallback(async (silent = false) => {
@@ -41,7 +39,6 @@ function App() {
         })
       );
       setStations(withLatest);
-      setIsConnected(true);
       setErrorMsg('');
       setStatus('ok');
       setSelectedStationId((prev) => {
@@ -50,7 +47,6 @@ function App() {
         return first ? first.id : prev;
       });
     } catch {
-      setIsConnected(false);
       setErrorMsg('No se pudo establecer conexión con el servidor de datos.');
       setStatus('error');
     } finally {
@@ -109,7 +105,7 @@ function App() {
           {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
         <span className="mobile-topbar__logo"><Droplet size={16} /></span>
-        <span className="mobile-topbar__title">Monitoreo Río Uruguay</span>
+        <span className="mobile-topbar__title">Sistema de Monitoreo de Ríos</span>
         {selectedStation && (
           <span className="mobile-topbar__station">{selectedStation.name}</span>
         )}
@@ -132,25 +128,22 @@ function App() {
               <Droplet size={20} style={{ color: 'var(--accent-blue)' }} />
               <div>
                 <h1 style={{ fontSize: '1.05rem', fontWeight: '600', letterSpacing: '-0.01em' }}>
-                  Monitoreo Río Uruguay
+                  Sistema de Monitoreo de Ríos
                 </h1>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                <a
+                  href="https://frcu.utn.edu.ar/geru"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: '500', textDecoration: 'none', transition: 'color 0.15s' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-blue)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
+                >
                   Grupo de Estudio del Río Uruguay
-                </span>
+                </a>
               </div>
             </div>
 
-            {/* Estado de conexión */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.2rem' }}>
-              {isConnected ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.65rem', fontWeight: '500', background: 'rgba(16,185,129,0.06)', color: '#10b981', border: '1px solid rgba(16,185,129,0.25)', padding: '0.2rem 0.5rem', borderRadius: '3px' }}>
-                  <CheckCircle2 size={10} /> API Conectada
-                </span>
-              ) : (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.65rem', fontWeight: '500', background: 'rgba(245,158,11,0.06)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.25)', padding: '0.2rem 0.5rem', borderRadius: '3px' }}>
-                  <Radio size={10} /> Sin conexión
-                </span>
-              )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.8rem' }}>
               <button
                 onClick={() => fetchStations()}
                 disabled={isRefreshing || status === 'loading'}
