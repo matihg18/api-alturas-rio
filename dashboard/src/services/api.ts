@@ -1,7 +1,3 @@
-// ──────────────────────────────────────────────────────────
-// Tipos que reflejan exactamente los schemas del backend
-// ──────────────────────────────────────────────────────────
-
 export interface Station {
   id: number;
   name: string;
@@ -17,8 +13,8 @@ export interface Station {
 export interface Measurement {
   id: number;
   station_id: number;
-  date_time: string;   // ISO 8601
-  value: number;       // metros (cero local u otro datum si se pidió conversión)
+  date_time: string;
+  value: number;
 }
 
 export interface LatestMeasurement extends Measurement {
@@ -40,7 +36,7 @@ export interface PagedStationsResponse {
 
 export interface DatumType {
   id: number;
-  code: string;   // p.ej. "IGN", "WHARTON"
+  code: string;
   name: string;
   description: string | null;
 }
@@ -59,9 +55,6 @@ export interface GaugePoint {
   datums: GaugeDatum[];
 }
 
-// ──────────────────────────────────────────────────────────
-// Cliente de API  (sólo GET, sin datos de muestra)
-// ──────────────────────────────────────────────────────────
 
 const BASE = '/api';
 
@@ -74,15 +67,11 @@ async function apiFetch<T>(path: string): Promise<T> {
 }
 
 export const apiClient = {
-  /**
-   * Devuelve TODAS las estaciones (itera la paginación si hubiera más de 100).
-   */
   async getStations(): Promise<Station[]> {
     const first = await apiFetch<PagedStationsResponse>('/stations?limit=100&skip=0');
     const total = first.total_count;
     let items = first.items;
 
-    // Si hay más páginas, las cargamos
     if (total > 100) {
       const pages = Math.ceil(total / 100);
       const rest = await Promise.all(
@@ -96,10 +85,6 @@ export const apiClient = {
     return items;
   },
 
-  /**
-   * Devuelve la última medición registrada de la estación.
-   * Si se indica `datumCode`, el servidor aplica la conversión al datum destino.
-   */
   async getLatestMeasurement(
     stationId: number,
     datumCode?: string,
@@ -108,10 +93,6 @@ export const apiClient = {
     return apiFetch<LatestMeasurement>(`/measurements/latest/${stationId}${qs}`);
   },
 
-  /**
-   * Devuelve las últimas N mediciones en orden cronológico (más antiguo → más reciente).
-   * Si se indica `datumCode`, el servidor aplica la conversión al datum destino.
-   */
   async getMeasurements(
     stationId: number,
     limit = 100,
@@ -124,17 +105,11 @@ export const apiClient = {
     if (datumCode) url += `&datum=${encodeURIComponent(datumCode)}`;
     if (fromDate) url += `&from_date=${encodeURIComponent(fromDate)}`;
     if (toDate) url += `&to_date=${encodeURIComponent(toDate)}`;
-    
+
     const result = await apiFetch<PagedMeasurementResponse>(url);
-    // Invertimos para que el gráfico quede de izquierda (más antiguo) a derecha (más reciente)
     return { ...result, items: [...result.items].reverse() };
   },
 
-  /**
-   * Devuelve el GaugePoint (escalímetro) de la estación, incluyendo todos los
-   * datums de conversión disponibles.  Lanza error si la estación no tiene
-   * gauge point asignado (404).
-   */
   async getGaugePoint(stationId: number): Promise<GaugePoint> {
     return apiFetch<GaugePoint>(`/datums/station/${stationId}`);
   },
