@@ -67,13 +67,12 @@ function App() {
     fetchStations();
     const interval = setInterval(() => fetchStations(true), 60_000);
     return () => clearInterval(interval);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (selectedStationId !== null) fetchHistory(selectedStationId);
   }, [selectedStationId, fetchHistory]);
 
-  // Cerrar sidebar si se pasa a desktop
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1025px)');
     const handler = (e: MediaQueryListEvent) => { if (e.matches) setSidebarOpen(false); };
@@ -91,11 +90,11 @@ function App() {
       || s.river.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+
   const selectedStation = stations.find((s) => s.id === selectedStationId) ?? null;
 
   return (
     <>
-      {/* ── Top bar (visible solo en móvil via CSS) ─────── */}
       <div className="mobile-topbar">
         <button
           className="mobile-topbar__btn"
@@ -111,112 +110,88 @@ function App() {
         )}
       </div>
 
-      {/* ── Backdrop del drawer ─────────────────────────── */}
       {sidebarOpen && (
         <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
       )}
-
-      {/* ── Layout principal ────────────────────────────── */}
       <div className="app-layout">
-
-        {/* Sidebar / Drawer */}
         <aside className={`app-sidebar${sidebarOpen ? ' is-open' : ''}`}>
 
-          {/* Header del sidebar */}
-          <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)', background: 'rgba(17,24,39,0.3)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-              <Droplet size={20} style={{ color: 'var(--accent-blue)' }} />
+          <div className="sidebar-header">
+            <div className="sidebar-header__row">
+              <Droplet size={20} className="sidebar-header__icon" />
               <div>
-                <h1 style={{ fontSize: '1.05rem', fontWeight: '600', letterSpacing: '-0.01em' }}>
+                <h1 className="sidebar-header__title">
                   Sistema de Monitoreo de Ríos
                 </h1>
                 <a
                   href="https://frcu.utn.edu.ar/geru"
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: '500', textDecoration: 'none', transition: 'color 0.15s' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-blue)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
+                  className="sidebar-header__subtitle sidebar-header__link"
                 >
                   Grupo de Estudio del Río Uruguay
                 </a>
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.8rem' }}>
+            <div className="sidebar-status sidebar-status--end">
               <button
                 onClick={() => fetchStations()}
                 disabled={isRefreshing || status === 'loading'}
                 title="Sincronizar datos"
-                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem', borderRadius: '2px' }}
+                className="btn-icon"
               >
                 <RefreshCw size={12} className={isRefreshing ? 'spin' : ''} />
               </button>
             </div>
           </div>
-
-          {/* Buscador */}
-          <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border-color)' }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <div className="sidebar-search">
+            <div className="sidebar-search__inner">
               <input
                 type="text"
                 placeholder="Buscar estación..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '3px', padding: '0.4rem 2rem 0.4rem 0.6rem', color: 'var(--text-primary)', fontSize: '0.8rem', outline: 'none' }}
+                className="sidebar-search__input"
               />
               {searchQuery && (
-                <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '0.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}>
+                <button onClick={() => setSearchQuery('')} className="sidebar-search__clear">
                   <X size={12} />
                 </button>
               )}
             </div>
           </div>
 
-          {/* Lista de estaciones */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
+          <div className="station-list">
             {status === 'loading' ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>Cargando estaciones…</div>
+              <div className="station-list__empty">Cargando estaciones…</div>
             ) : filteredStations.length === 0 ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No se encontraron estaciones</div>
+              <div className="station-list__empty">No se encontraron estaciones</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+              <div className="station-list__items">
                 {filteredStations.map((station) => {
                   const isSelected = station.id === selectedStationId;
                   return (
                     <button
                       key={station.id}
                       onClick={() => handleSelectStation(station.id)}
-                      style={{
-                        background: isSelected ? 'var(--bg-tertiary)' : 'transparent',
-                        border: 'none',
-                        borderLeft: isSelected ? '3px solid var(--accent-blue)' : '3px solid transparent',
-                        borderRadius: '3px',
-                        padding: '0.6rem 0.8rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        width: '100%',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'background 0.1s',
-                      }}
+                      className={`station-item${isSelected ? ' station-item--selected' : ''}`}
                     >
                       <div>
-                        <div style={{ fontWeight: isSelected ? '600' : '400', fontSize: '0.8rem', color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                        <div className="station-item__name">
                           {station.name}
                         </div>
-                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                        <div className="station-item__river">
                           Río {station.river}
                         </div>
                       </div>
                       <div>
                         {station.latest?.value != null ? (
-                          <span className="mono" style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                          <span className="mono station-item__value">
                             {station.latest.value.toFixed(2)}m
                           </span>
                         ) : (
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>—</span>
+                          <span className="station-item__no-value">—</span>
                         )}
                       </div>
                     </button>
@@ -226,25 +201,23 @@ function App() {
             )}
           </div>
         </aside>
-
-        {/* ── Contenido principal ──────────────────────── */}
         <main className="app-main">
           {status === 'loading' ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.8rem', color: 'var(--text-secondary)' }}>
-              <div style={{ width: '24px', height: '24px', border: '2px solid var(--border-color)', borderTopColor: 'var(--accent-blue)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-              <p style={{ fontSize: '0.75rem' }}>Cargando datos hidrológicos…</p>
+            <div className="main-loading">
+              <div className="spinner" />
+              <p className="main-loading__text">Cargando datos hidrológicos…</p>
             </div>
           ) : status === 'error' ? (
-            <div className="card-panel" style={{ margin: 'auto', maxWidth: '500px', textAlign: 'center', borderColor: 'rgba(239,68,68,0.4)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <AlertTriangle size={28} style={{ color: 'red', margin: '0 auto' }} />
-              <h2 style={{ fontSize: '1.1rem', color: 'red', fontWeight: '600' }}>Error de Conectividad</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{errorMsg}</p>
+            <div className="card-panel error-panel">
+              <AlertTriangle size={28} className="error-panel__icon" />
+              <h2 className="error-panel__title">Error de Conectividad</h2>
+              <p className="error-panel__msg">{errorMsg}</p>
               <button className="btn" onClick={() => fetchStations()}>Reintentar enlace</button>
             </div>
           ) : selectedStation ? (
             <StationDetail station={selectedStation} latest={selectedStation.latest} history={history} />
           ) : (
-            <div className="card-panel" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+            <div className="card-panel empty-panel">
               Seleccione una estación de la lista para ver los datos de telemetría.
             </div>
           )}
