@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient, Station, Measurement, LatestMeasurement } from './services/api';
 import { StationDetail } from './components/StationDetail';
+import { useLocation } from 'react-router-dom';
 import {
   Droplet,
-  RefreshCw,
   AlertTriangle,
   X,
   Menu,
@@ -17,19 +17,34 @@ interface StationWithLatest extends Station {
 type AppStatus = 'loading' | 'error' | 'ok';
 
 function App() {
+  const location = useLocation();
+  const requestedId = (location.state as { stationId?: number } | null)?.stationId ?? null;
+
   const [stations, setStations] = useState<StationWithLatest[]>([]);
-  const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
+  const [selectedStationId, setSelectedStationId] = useState<number | null>(requestedId);
   const [history, setHistory] = useState<Measurement[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [status, setStatus] = useState<AppStatus>('loading');
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const listRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+
+  useEffect(() => {
+    if (selectedStationId === null) return;
+    const t = setTimeout(() => {
+      const list = listRef.current;
+      const el = itemRefs.current.get(selectedStationId);
+      if (!list || !el) return;
+      list.scrollTop = el.offsetTop - list.offsetTop - 8;
+    }, 80);
+    return () => clearTimeout(t);
+  }, [selectedStationId, stations]);
 
   const fetchStations = useCallback(async (silent = false) => {
     if (!silent) setStatus('loading');
-    else setIsRefreshing(true);
     try {
       const stationList = await apiClient.getStations();
       const withLatest: StationWithLatest[] = await Promise.all(
@@ -49,8 +64,6 @@ function App() {
     } catch {
       setErrorMsg('No se pudo establecer conexión con el servidor de datos.');
       setStatus('error');
-    } finally {
-      setIsRefreshing(false);
     }
   }, []);
 
@@ -133,17 +146,6 @@ function App() {
                 </a>
               </div>
             </div>
-
-            <div className="sidebar-status sidebar-status--end">
-              <button
-                onClick={() => fetchStations()}
-                disabled={isRefreshing || status === 'loading'}
-                title="Sincronizar datos"
-                className="btn-icon"
-              >
-                <RefreshCw size={12} className={isRefreshing ? 'spin' : ''} />
-              </button>
-            </div>
           </div>
           <div className="sidebar-search">
             <div className="sidebar-search__inner">
@@ -162,7 +164,7 @@ function App() {
             </div>
           </div>
 
-          <div className="station-list">
+          <div className="station-list" ref={listRef}>
             {status === 'loading' ? (
               <div className="station-list__empty">Cargando estaciones…</div>
             ) : filteredStations.length === 0 ? (
@@ -174,6 +176,10 @@ function App() {
                   return (
                     <button
                       key={station.id}
+                      ref={(el) => {
+                        if (el) itemRefs.current.set(station.id, el);
+                        else itemRefs.current.delete(station.id);
+                      }}
                       onClick={() => handleSelectStation(station.id)}
                       className={`station-item${isSelected ? ' station-item--selected' : ''}`}
                     >
@@ -223,6 +229,18 @@ function App() {
           )}
         </main>
       </div>
+
+      <footer className="map-page__disclaimer">
+        <span>
+          Los datos hidrológicos son recopilados de fuentes oficiales:{' '}
+          <a href="https://contenidosweb.prefecturanaval.gob.ar/alturas/" target="_blank" rel="noopener noreferrer">Prefectura Naval Argentina</a>,{' '}
+          <a href="https://alerta.ina.gob.ar" target="_blank" rel="noopener noreferrer">INA</a>,{' '}
+          <a href="http://www.caru.org.ar" target="_blank" rel="noopener noreferrer">CARU</a> y{' '}
+          <a href="https://gualeguaychu.gov.ar/alturadelrio" target="_blank" rel="noopener noreferrer">Municipalidad de Gualeguaychú</a>.
+          {' '}Esta plataforma expone el conjunto de datos con fines informativos.
+          La exactitud o vigencia de los datos es responsabilidad de cada organismo fuente.
+        </span>
+      </footer>
     </>
   );
 }
