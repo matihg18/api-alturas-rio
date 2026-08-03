@@ -29,9 +29,25 @@ export function MapPage() {
         list.map(async (s) => {
           try {
             const latest: LatestMeasurement = await apiClient.getLatestMeasurement(s.id);
-            return { ...s, latest };
+
+            let trend: StationWithLatest['trend'] = 'stable';
+            try {
+              const history = await apiClient.getMeasurements(s.id, 2, 0);
+              const items = history.items;
+              if (items.length >= 2) {
+                const prev = items[0].value;
+                const curr = items[1].value;
+                if (curr > prev) trend = 'up';
+                else if (curr < prev) trend = 'down';
+                else trend = 'stable';
+              }
+            } catch {
+              trend = 'stable';
+            }
+
+            return { ...s, latest, trend };
           } catch {
-            return { ...s, latest: null };
+            return { ...s, latest: null, trend: 'none' as const };
           }
         }),
       );
