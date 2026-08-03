@@ -12,28 +12,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-export type Trend = 'up' | 'down' | 'stable' | 'none';
-
-function makeTrendIcon(trend: Trend): L.DivIcon {
-  const configs: Record<Trend, { symbol: string; bg: string; border: string }> = {
-    up: { symbol: '▲', bg: '#16a34a', border: '#15803d' },
-    down: { symbol: '▼', bg: '#dc2626', border: '#b91c1c' },
-    stable: { symbol: '=', bg: '#2563eb', border: '#1d4ed8' },
-    none: { symbol: '✕', bg: '#94a3b8', border: '#64748b' },
-  };
-  const { symbol, bg, border } = configs[trend];
-
-  const html = `<div class="trend-marker" style="background:${bg};border-color:${border};">${symbol}</div>`;
-
-  return L.divIcon({
-    html,
-    className: 'trend-marker-wrapper',
-    iconSize: [25, 25],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -17],
-  });
-}
-
 function BoundsFitter({ stations }: { stations: Station[] }) {
   const map = useMap();
   const fitted = useRef(false);
@@ -59,7 +37,6 @@ function BoundsFitter({ stations }: { stations: Station[] }) {
   return null;
 }
 
-// ── Popup content ─────────────────────────────────────────────────────────────
 interface StationPopupProps {
   station: Station;
   latest: LatestMeasurement | null;
@@ -117,10 +94,8 @@ function StationPopup({ station, latest }: StationPopupProps) {
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
 export interface StationWithLatest extends Station {
   latest: LatestMeasurement | null;
-  trend: Trend;
 }
 
 interface StationMapProps {
@@ -151,11 +126,7 @@ export function StationMap({ stations }: StationMapProps) {
       <BoundsFitter stations={withCoords} />
 
       {withCoords.map((s) => (
-        <Marker
-          key={s.id}
-          position={[s.latitud!, s.longitud!]}
-          icon={makeTrendIcon(s.trend)}
-        >
+        <Marker key={s.id} position={[s.latitud!, s.longitud!]}>
           <Popup minWidth={220} maxWidth={280}>
             <StationPopup station={s} latest={s.latest} />
           </Popup>
