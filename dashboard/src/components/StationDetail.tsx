@@ -455,7 +455,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 <span>Convirtiendo datum...</span>
               </div>
             )}
-            <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} style={{ width: '100%', height: 'auto', aspectRatio: `${chartWidth} / ${chartHeight}`, overflow: 'visible', minWidth: '450px' }}>
+            <svg key={station.id} viewBox={`0 0 ${chartWidth} ${chartHeight}`} style={{ width: '100%', height: 'auto', aspectRatio: `${chartWidth} / ${chartHeight}`, overflow: 'visible', minWidth: '450px' }}>
               <defs>
                 <linearGradient id="area-grad" x1="0%" y1="0%" x2="0%" y2="100%">
                   <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.08" />
@@ -463,10 +463,10 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 </linearGradient>
               </defs>
 
-              {yTicks.map((tickVal) => {
+              {yTicks.map((tickVal, tickIdx) => {
                 const y = getChartY(tickVal);
                 return (
-                  <g key={`grid-${tickVal}`}>
+                  <g key={`grid-${tickIdx}`}>
                     <line x1={chartPadding.left} y1={y} x2={chartWidth - chartPadding.right} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
                     <text x={chartPadding.left - 6} y={y + 3} textAnchor="end" fill="var(--text-muted)" className="mono" style={{ fontSize: '0.6rem' }}>
                       {tickVal.toFixed(1)}m

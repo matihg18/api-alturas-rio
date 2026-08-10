@@ -38,3 +38,12 @@ MUNICIPALIDAD_GCHU_URL = os.getenv(
 )
 MUNICIPALIDAD_GCHU_ENABLED = os.getenv("MUNICIPALIDAD_GCHU_ENABLED", "true").lower() == "true"
 MUNICIPALIDAD_GCHU_INTERVAL = int(os.getenv("MUNICIPALIDAD_GCHU_INTERVAL", "3600"))
+
+# --- SGB (Servicio Geológico de Brasil) — Portal SACE ---
+SGB_MAPA_URL = os.getenv(
+    "SGB_MAPA_URL", "https://sace.sgb.gov.br/estacoes_mapa.php?bacia=uruguai"
+)
+SGB_REPORT_BASE_URL = os.getenv("SGB_REPORT_BASE_URL", "https://sace.sgb.gov.br")
+SGB_ENABLED = os.getenv("SGB_ENABLED", "true").lower() == "true"
+SGB_INCREMENTAL_HOURS = int(os.getenv("SGB_INCREMENTAL_HOURS", "48"))
+SGB_INTERVAL = int(os.getenv("SGB_INTERVAL", "3600"))
