@@ -1000,3 +1000,32 @@ h6 {
   background: rgba(56, 189, 248, 0.15);
   border-color: var(--accent-blue);
 }
+
+/* ── Trend markers ─────────────────────────────────────────────────────────── */
+.trend-marker-wrapper {
+  background: transparent !important;
+  border: none !important;
+}
+
+.trend-marker {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+  user-select: none;
+}
+
+.trend-marker:hover {
+  transform: scale(1.18);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
