@@ -700,7 +700,8 @@ h6 {
   height: 100%;
 }
 
-.map-page__disclaimer {
+/* ── Sources footer (inline trigger + JS-positioned popover) ──────────────── */
+.sources-footer {
   flex-shrink: 0;
   background: #0a0e1a;
   border-top: 1px solid var(--border-color);
@@ -711,22 +712,83 @@ h6 {
   text-align: center;
 }
 
-.map-page__disclaimer a {
+/* "fuentes oficiales" — palabra interactiva */
+.sources-trigger {
+  color: var(--accent-blue);
+  opacity: 0.85;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  transition: opacity 0.15s;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.sources-trigger:hover,
+.sources-trigger:focus-visible,
+.sources-trigger.is-open {
+  opacity: 1;
+  text-decoration: underline;
+  text-decoration-style: solid;
+}
+
+/* Popover — posición (left/bottom/transform) aplicada via JS como estilo inline */
+.sources-popover {
+  width: 230px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  text-align: left;
+}
+
+.sources-popover.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sources-popover__title {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.6rem;
+}
+
+.sources-popover__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sources-popover__list a {
+  font-size: 0.75rem;
   color: var(--accent-blue);
   text-decoration: none;
   opacity: 0.85;
   transition: opacity 0.1s;
+  display: block;
 }
 
-.map-page__disclaimer a:hover {
+.sources-popover__list a:hover {
   opacity: 1;
   text-decoration: underline;
 }
 
 @media (max-width: 600px) {
-  .map-page__disclaimer {
+  .sources-footer {
     padding: 0.5rem 1rem;
     font-size: 0.6rem;
+  }
+  .sources-popover {
+    width: calc(100vw - 2.5rem);
   }
 }
 

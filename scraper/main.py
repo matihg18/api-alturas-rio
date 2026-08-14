@@ -11,6 +11,7 @@ from scraper.municipalidadgchu.strategy import (
     MunicipalidadGchuIncrementalStrategy,
     MunicipalidadGchuBackFillStrategy,
 )
+from scraper.sgb.strategy import SGBIncrementalStrategy, SGBBackFillStrategy
 from scraper.prefectura.syncer import PrefecturaStationSyncer
 from scraper.repository import ScraperRepository
 from scraper.context import ScraperContext
@@ -95,6 +96,17 @@ SOURCES: list[SourceDefinition] = [
         make_syncer=NoOpStationSyncer,
         # Solo reporta el río Gualeguaychú — filtro explícito para documentar la intención.
         allowed_rivers=["GUALEGUAYCHU"],
+    ),
+    SourceDefinition(
+        name="SGB",
+        enabled=config.SGB_ENABLED,
+        interval=config.SGB_INTERVAL,
+        make_incremental=SGBIncrementalStrategy,
+        make_backfill=lambda days: SGBBackFillStrategy(days),
+        make_syncer=NoOpStationSyncer,
+        # SGB cubre la cuenca del Uruguay (Brasil): el río de cada estación
+        # se asigna dinámicamente por el strategy — sin filtro global.
+        allowed_rivers=[],
     ),
 ]
 
