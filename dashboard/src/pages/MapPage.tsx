@@ -4,6 +4,7 @@ import { apiClient } from '../services/api';
 import type { Station, LatestMeasurement } from '../services/api';
 import { StationMap } from '../components/StationMap';
 import type { StationWithLatest } from '../components/StationMap';
+import { SourcesFooter } from '../components/SourcesFooter';
 import {
   Droplet,
   RefreshCw,
@@ -113,17 +114,7 @@ export function MapPage() {
         )}
       </div>
 
-      <footer className="map-page__disclaimer">
-        <span>
-          Los datos hidrológicos son recopilados de fuentes oficiales:{' '}
-          <a href="https://contenidosweb.prefecturanaval.gob.ar/alturas/" target="_blank" rel="noopener noreferrer">Prefectura Naval Argentina</a>,{' '}
-          <a href="https://alerta.ina.gob.ar" target="_blank" rel="noopener noreferrer">INA</a>,{' '}
-          <a href="http://www.caru.org.ar" target="_blank" rel="noopener noreferrer">CARU</a> y{' '}
-          <a href="https://gualeguaychu.gov.ar/alturadelrio" target="_blank" rel="noopener noreferrer">Municipalidad de Gualeguaychú</a>.
-          {' '}Esta plataforma expone el conjunto de datos con fines informativos.
-          La exactitud o vigencia de los datos es responsabilidad de cada organismo fuente.
-        </span>
-      </footer>
+      <SourcesFooter />
     </div>
   );
 }
