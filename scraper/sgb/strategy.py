@@ -51,10 +51,6 @@ def _fetch_sgb_data(
         sr = info["sr"]
         station_name = info["name"]
 
-        report_url = (
-            f"{config.SGB_REPORT_BASE_URL}/relatorio.php"
-            f"?apenas_grafico=sim&bacia=uruguai&pm={pm}&s={s}&sr={sr}"
-        )
         try:
             report_html = client.get_station_report(pm, s, sr)
             river = parser.parse_river_from_report(report_html)
@@ -63,7 +59,7 @@ def _fetch_sgb_data(
                 f"SGB: could not fetch report for '{station_name}' (pm={pm}): {e}. "
                 "Using fallback river name."
             )
-            river = info["river"] 
+            river = info["river"]
 
         info["river"] = river
         raw_stations.append(parser.station_to_raw_data(info))

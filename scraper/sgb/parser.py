@@ -3,7 +3,7 @@ import re
 import csv
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 
 from bs4 import BeautifulSoup
 
@@ -63,7 +63,6 @@ class SGBParser:
                 return normalize_river(raw)
         logger.debug("SGB: river name not found in report page, using fallback")
         return RIVER_FALLBACK
-
 
     def parse_csv(
         self,
