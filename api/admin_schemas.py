@@ -51,6 +51,11 @@ class StationVisibilityUpdate(BaseModel):
     is_visible: bool
 
 
+class StationCoordinatesUpdate(BaseModel):
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+
+
 # ── Response models ──────────────────────────────────────────────────────────
 
 class DatumTypeAdminResponse(BaseModel):

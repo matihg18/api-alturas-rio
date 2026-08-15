@@ -15,6 +15,7 @@ from api.admin_schemas import (
     OffsetAdminResponse,
     StationAssignGaugePoint,
     StationVisibilityUpdate,
+    StationCoordinatesUpdate,
     StationAdminResponse,
 )
 from api.dependencies import get_db
@@ -60,13 +61,29 @@ def admin_toggle_station_visibility(
     body: StationVisibilityUpdate,
     db: Session = Depends(get_db),
 ):
-    """Habilita o deshabilita la visibilidad de una estación en el frontend.
-    NO afecta el proceso de scraping."""
     station = db.get(Station, station_id)
     if not station:
         raise HTTPException(status_code=404, detail=f"Station {station_id} not found")
 
     station.is_visible = body.is_visible
+    db.commit()
+    db.refresh(station)
+    return station
+
+
+@router.patch("/stations/{station_id}/coordinates", response_model=StationAdminResponse)
+def admin_update_station_coordinates(
+    station_id: int,
+    body: StationCoordinatesUpdate,
+    db: Session = Depends(get_db),
+):
+    """Actualiza las coordenadas geográficas de una estación."""
+    station = db.get(Station, station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station {station_id} not found")
+
+    station.latitud = body.latitud
+    station.longitud = body.longitud
     db.commit()
     db.refresh(station)
     return station
