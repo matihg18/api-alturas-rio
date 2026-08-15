@@ -9,6 +9,7 @@ export interface Station {
   longitud: number | null;
   alert_value: number | null;
   evacuation_value: number | null;
+  is_visible: boolean;
   gauge_point_id: number | null;
   gauge_point: GaugePoint | null;
 }
@@ -77,8 +78,9 @@ async function request<T>(
 // Stations
 export const api = {
   stations: {
-    list:            ()                                    => request<Station[]>('GET', '/stations'),
-    assignGaugePoint:(id: number, body: AssignGaugePoint) => request<Station>('PUT', `/stations/${id}/gauge-point`, body),
+    list:             ()                                    => request<Station[]>('GET', '/stations'),
+    assignGaugePoint: (id: number, body: AssignGaugePoint) => request<Station>('PUT', `/stations/${id}/gauge-point`, body),
+    toggleVisibility: (id: number, is_visible: boolean)    => request<Station>('PATCH', `/stations/${id}/visibility`, { is_visible }),
   },
   gaugePoints: {
     list:   ()                                  => request<GaugePoint[]>('GET', '/gauge-points'),

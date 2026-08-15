@@ -15,6 +15,7 @@ export function StationsPage() {
   const [selectedGpId, setSelectedGpId] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -48,10 +49,29 @@ export function StationsPage() {
     } finally { setSaving(false); }
   };
 
+  const handleToggleVisibility = async (station: Station) => {
+    const newValue = !station.is_visible;
+    setStations((prev) =>
+      prev.map((s) => s.id === station.id ? { ...s, is_visible: newValue } : s)
+    );
+    setTogglingId(station.id);
+    try {
+      await api.stations.toggleVisibility(station.id, newValue);
+      show(newValue ? `"${station.name}" habilitada en el dashboard` : `"${station.name}" ocultada del dashboard`);
+    } catch (e: unknown) {
+      setStations((prev) =>
+        prev.map((s) => s.id === station.id ? { ...s, is_visible: !newValue } : s)
+      );
+      show(e instanceof Error ? e.message : 'Error al cambiar visibilidad', 'error');
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   const filtered = stations.filter(
     (s) => s.name.toLowerCase().includes(search.toLowerCase()) ||
-           s.river.toLowerCase().includes(search.toLowerCase()) ||
-           s.source.toLowerCase().includes(search.toLowerCase())
+      s.river.toLowerCase().includes(search.toLowerCase()) ||
+      s.source.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -60,7 +80,7 @@ export function StationsPage() {
         <div className="page-header__left">
           <h1 className="page-title">Estaciones</h1>
           <p className="page-subtitle">
-            Listado de estaciones hidrológicas. Solo se puede modificar la asignación de punto de aforo.
+            Listado de estaciones hidrológicas. Podés asignar el punto de aforo y controlar la visibilidad en el dashboard.
           </p>
         </div>
         <input
@@ -85,13 +105,14 @@ export function StationsPage() {
                   <th>Río</th>
                   <th>Fuente</th>
                   <th>Punto de aforo</th>
+                  <th style={{ textAlign: 'center' }}>Visible en frontend</th>
                   <th style={{ textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr className="loading-row">
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                         <span className="spinner" /> Cargando estaciones…
                       </div>
@@ -99,7 +120,7 @@ export function StationsPage() {
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <div className="empty-state">
                         <Layers size={28} className="empty-state__icon" />
                         <div className="empty-state__title">No hay estaciones</div>
@@ -109,7 +130,7 @@ export function StationsPage() {
                   </tr>
                 ) : (
                   filtered.map((s) => (
-                    <tr key={s.id}>
+                    <tr key={s.id} className={!s.is_visible ? 'station-row--hidden' : ''}>
                       <td className="td-mono">#{s.id}</td>
                       <td className="td-primary">{s.name}</td>
                       <td>{s.river}</td>
@@ -124,6 +145,23 @@ export function StationsPage() {
                             <Link2Off size={10} /> Sin asignar
                           </span>
                         )}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <label
+                          className="toggle-switch"
+                          title={s.is_visible ? 'Ocultar del frontend' : 'Mostrar en el frontend'}
+                        >
+                          <input
+                            id={`visibility-toggle-${s.id}`}
+                            type="checkbox"
+                            checked={s.is_visible}
+                            disabled={togglingId === s.id}
+                            onChange={() => handleToggleVisibility(s)}
+                          />
+                          <span className="toggle-switch__track">
+                            <span className="toggle-switch__thumb" />
+                          </span>
+                        </label>
                       </td>
                       <td>
                         <div className="td-actions">

@@ -1,6 +1,6 @@
 from typing import List, Optional
 from datetime import datetime
-from sqlalchemy import String, Float, DateTime, ForeignKey, Text, UniqueConstraint, Integer
+from sqlalchemy import String, Float, DateTime, ForeignKey, Text, UniqueConstraint, Integer, Boolean
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -64,6 +64,7 @@ class Station(Base):
     )
     alert_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     evacuation_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    is_visible: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     gauge_point_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("gauge_points.id"), nullable=True
     )
