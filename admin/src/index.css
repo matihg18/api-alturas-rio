@@ -343,6 +343,30 @@ tbody td.td-mono {
   justify-content: flex-end;
 }
 
+/* ── Editable cells ───────────────────────────────────────────────────────── */
+.td-editable {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.td-editable:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.td-editable__content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.td-editable__hint {
+  opacity: 0;
+  color: var(--text-muted);
+  transition: opacity 0.15s;
+  display: inline-flex;
+  align-items: center;
+}
+.td-editable:hover .td-editable__hint {
+  opacity: 1;
+}
+
 /* ── Empty state ──────────────────────────────────────────────────────────── */
 .empty-state {
   padding: 3rem 2rem;
@@ -371,6 +395,7 @@ tbody td.td-mono {
 .badge-accent  { background: var(--accent-muted); color: var(--accent-hover); border: 1px solid var(--accent-border); }
 .badge-success { background: var(--success-muted); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
 .badge-muted   { background: rgba(255,255,255,0.04); color: var(--text-muted); border: 1px solid var(--border); }
+.badge-warning { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
 .badge-code    { font-family: var(--font-mono); font-size: 0.7rem; background: rgba(99,102,241,0.1); color: var(--accent-hover); border: 1px solid var(--accent-border); }
 
 /* ── Form / Modal ─────────────────────────────────────────────────────────── */

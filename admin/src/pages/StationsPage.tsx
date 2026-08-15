@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Layers, Link2, Link2Off } from 'lucide-react';
+import { Layers, Link2, Link2Off, MapPin, Pencil } from 'lucide-react';
 import { api } from '../services/adminApi';
-import type { Station, GaugePoint } from '../services/adminApi';
+import type { Station, GaugePoint, StationCoordinatesUpdate } from '../services/adminApi';
 
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
@@ -11,9 +11,18 @@ export function StationsPage() {
   const [stations, setStations] = useState<Station[]>([]);
   const [gaugePoints, setGaugePoints] = useState<GaugePoint[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Modal: asignar punto de aforo
   const [editStation, setEditStation] = useState<Station | null>(null);
   const [selectedGpId, setSelectedGpId] = useState<string>('');
   const [saving, setSaving] = useState(false);
+
+  // Modal: editar coordenadas
+  const [coordStation, setCoordStation] = useState<Station | null>(null);
+  const [coordLat, setCoordLat] = useState<string>('');
+  const [coordLng, setCoordLng] = useState<string>('');
+  const [savingCoords, setSavingCoords] = useState(false);
+
   const [search, setSearch] = useState('');
   const [togglingId, setTogglingId] = useState<number | null>(null);
 
@@ -28,6 +37,8 @@ export function StationsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // ── Punto de aforo ────────────────────────────────────────────────────────
 
   const openEdit = (s: Station) => {
     setEditStation(s);
@@ -49,6 +60,8 @@ export function StationsPage() {
     } finally { setSaving(false); }
   };
 
+  // ── Visibilidad ───────────────────────────────────────────────────────────
+
   const handleToggleVisibility = async (station: Station) => {
     const newValue = !station.is_visible;
     setStations((prev) =>
@@ -68,11 +81,67 @@ export function StationsPage() {
     }
   };
 
+  // ── Coordenadas ───────────────────────────────────────────────────────────
+
+  const openCoords = (s: Station) => {
+    setCoordStation(s);
+    setCoordLat(s.latitud !== null ? String(s.latitud) : '');
+    setCoordLng(s.longitud !== null ? String(s.longitud) : '');
+  };
+
+  const handleSaveCoords = async () => {
+    if (!coordStation) return;
+    setSavingCoords(true);
+
+    const parsedLat = coordLat.trim() !== '' ? parseFloat(coordLat) : null;
+    const parsedLng = coordLng.trim() !== '' ? parseFloat(coordLng) : null;
+
+    if (parsedLat !== null && (parsedLat < -90 || parsedLat > 90)) {
+      show('La latitud debe estar entre -90 y 90', 'error');
+      setSavingCoords(false);
+      return;
+    }
+    if (parsedLng !== null && (parsedLng < -180 || parsedLng > 180)) {
+      show('La longitud debe estar entre -180 y 180', 'error');
+      setSavingCoords(false);
+      return;
+    }
+
+    const body: StationCoordinatesUpdate = { latitud: parsedLat, longitud: parsedLng };
+
+    // Optimistic update
+    setStations((prev) =>
+      prev.map((s) => s.id === coordStation.id ? { ...s, ...body } : s)
+    );
+
+    try {
+      await api.stations.updateCoordinates(coordStation.id, body);
+      show(`Coordenadas de "${coordStation.name}" actualizadas`);
+      setCoordStation(null);
+    } catch (e: unknown) {
+      // Revertir si falla
+      setStations((prev) =>
+        prev.map((s) =>
+          s.id === coordStation.id
+            ? { ...s, latitud: coordStation.latitud, longitud: coordStation.longitud }
+            : s
+        )
+      );
+      show(e instanceof Error ? e.message : 'Error al guardar coordenadas', 'error');
+    } finally {
+      setSavingCoords(false);
+    }
+  };
+
+  // ── Filtrado ──────────────────────────────────────────────────────────────
+
   const filtered = stations.filter(
     (s) => s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.river.toLowerCase().includes(search.toLowerCase()) ||
       s.source.toLowerCase().includes(search.toLowerCase())
   );
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -80,7 +149,7 @@ export function StationsPage() {
         <div className="page-header__left">
           <h1 className="page-title">Estaciones</h1>
           <p className="page-subtitle">
-            Listado de estaciones hidrológicas. Podés asignar el punto de aforo y controlar la visibilidad en el dashboard.
+            Listado de estaciones hidrológicas. Podés asignar el punto de aforo, editar coordenadas y controlar la visibilidad en el dashboard.
           </p>
         </div>
         <input
@@ -105,8 +174,8 @@ export function StationsPage() {
                   <th>Río</th>
                   <th>Fuente</th>
                   <th>Punto de aforo</th>
+                  <th>Coordenadas</th>
                   <th style={{ textAlign: 'center' }}>Visible en frontend</th>
-                  <th style={{ textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -135,16 +204,44 @@ export function StationsPage() {
                       <td className="td-primary">{s.name}</td>
                       <td>{s.river}</td>
                       <td><span className="badge badge-muted">{s.source}</span></td>
-                      <td>
-                        {s.gauge_point ? (
-                          <span className="badge badge-accent">
-                            <Link2 size={10} /> {s.gauge_point.name}
-                          </span>
-                        ) : (
-                          <span className="badge badge-muted">
-                            <Link2Off size={10} /> Sin asignar
-                          </span>
-                        )}
+                      <td
+                        id={`assign-gp-${s.id}`}
+                        className="td-editable"
+                        onClick={() => openEdit(s)}
+                        title="Clic para cambiar el punto de aforo"
+                      >
+                        <span className="td-editable__content">
+                          {s.gauge_point ? (
+                            <span className="badge badge-accent">
+                              <Link2 size={10} /> {s.gauge_point.name}
+                            </span>
+                          ) : (
+                            <span className="badge badge-muted">
+                              <Link2Off size={10} /> Sin asignar
+                            </span>
+                          )}
+                          <span className="td-editable__hint"><Pencil size={11} /></span>
+                        </span>
+                      </td>
+                      <td
+                        id={`edit-coords-${s.id}`}
+                        className="td-editable"
+                        onClick={() => openCoords(s)}
+                        title="Clic para editar las coordenadas"
+                      >
+                        <span className="td-editable__content">
+                          {s.latitud !== null && s.longitud !== null ? (
+                            <span className="badge badge-accent">
+                              <MapPin size={10} />
+                              {s.latitud.toFixed(4)}, {s.longitud.toFixed(4)}
+                            </span>
+                          ) : (
+                            <span className="badge badge-warning">
+                              <MapPin size={10} /> Sin coordenadas
+                            </span>
+                          )}
+                          <span className="td-editable__hint"><Pencil size={11} /></span>
+                        </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <label
@@ -163,13 +260,6 @@ export function StationsPage() {
                           </span>
                         </label>
                       </td>
-                      <td>
-                        <div className="td-actions">
-                          <button id={`assign-gp-${s.id}`} className="btn btn-secondary btn-sm" onClick={() => openEdit(s)}>
-                            Asignar punto de aforo
-                          </button>
-                        </div>
-                      </td>
                     </tr>
                   ))
                 )}
@@ -179,6 +269,7 @@ export function StationsPage() {
         </div>
       </div>
 
+      {/* Modal: asignar punto de aforo */}
       {editStation && (
         <Modal
           title={`Asignar punto de aforo — ${editStation.name}`}
@@ -210,6 +301,80 @@ export function StationsPage() {
           </div>
         </Modal>
       )}
+
+      {/* Modal: editar coordenadas */}
+      {coordStation && (
+        <Modal
+          title={`Editar coordenadas — ${coordStation.name}`}
+          onClose={() => setCoordStation(null)}
+          footer={
+            <>
+              <button className="btn btn-secondary" onClick={() => setCoordStation(null)} disabled={savingCoords}>Cancelar</button>
+              <button className="btn btn-primary" onClick={handleSaveCoords} disabled={savingCoords}>
+                {savingCoords ? <span className="spinner" style={{ width: 14, height: 14 }} /> : null}
+                Guardar
+              </button>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 0.75rem',
+                borderRadius: '0.375rem',
+                background: coordStation.latitud !== null && coordStation.longitud !== null
+                  ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)'
+                  : 'color-mix(in srgb, #f59e0b 12%, transparent)',
+                fontSize: '0.8125rem',
+                color: coordStation.latitud !== null && coordStation.longitud !== null
+                  ? 'var(--color-accent)'
+                  : '#f59e0b',
+              }}
+            >
+              <MapPin size={14} />
+              {coordStation.latitud !== null && coordStation.longitud !== null
+                ? `Coordenadas actuales: ${coordStation.latitud}, ${coordStation.longitud}`
+                : 'Esta estación no tiene coordenadas definidas'}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="coord-lat">Latitud</label>
+              <input
+                id="coord-lat"
+                type="number"
+                className="form-input"
+                placeholder="Ej: -34.6037"
+                step="any"
+                min="-90"
+                max="90"
+                value={coordLat}
+                onChange={(e) => setCoordLat(e.target.value)}
+              />
+              <span className="form-hint">Valor entre -90 y 90. Dejarlo vacío para eliminar.</span>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="coord-lng">Longitud</label>
+              <input
+                id="coord-lng"
+                type="number"
+                className="form-input"
+                placeholder="Ej: -58.3816"
+                step="any"
+                min="-180"
+                max="180"
+                value={coordLng}
+                onChange={(e) => setCoordLng(e.target.value)}
+              />
+              <span className="form-hint">Valor entre -180 y 180. Dejarlo vacío para eliminar.</span>
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }
+
