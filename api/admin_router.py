@@ -14,6 +14,7 @@ from api.admin_schemas import (
     OffsetUpdate,
     OffsetAdminResponse,
     StationAssignGaugePoint,
+    StationVisibilityUpdate,
     StationAdminResponse,
 )
 from api.dependencies import get_db
@@ -48,6 +49,24 @@ def admin_assign_gauge_point(
             )
 
     station.gauge_point_id = body.gauge_point_id
+    db.commit()
+    db.refresh(station)
+    return station
+
+
+@router.patch("/stations/{station_id}/visibility", response_model=StationAdminResponse)
+def admin_toggle_station_visibility(
+    station_id: int,
+    body: StationVisibilityUpdate,
+    db: Session = Depends(get_db),
+):
+    """Habilita o deshabilita la visibilidad de una estación en el frontend.
+    NO afecta el proceso de scraping."""
+    station = db.get(Station, station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station {station_id} not found")
+
+    station.is_visible = body.is_visible
     db.commit()
     db.refresh(station)
     return station

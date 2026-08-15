@@ -31,7 +31,7 @@ class ApiRepository:
         return stmt.offset(paging.skip).limit(paging.limit)
 
     def get_station_list(self, paging: PagingParams):
-        base_stmt = select(Station)
+        base_stmt = select(Station).where(Station.is_visible.is_(True))
         total_count = self.db_session.execute(
             select(func.count()).select_from(base_stmt.subquery())
         ).scalar()
@@ -53,6 +53,7 @@ class ApiRepository:
         base_stmt = (
             select(Station)
             .join(latest_measurements, Station.id == latest_measurements.c.station_id)
+            .where(Station.is_visible.is_(True))
             .where(latest_measurements.c.value >= Station.alert_value)
         )
         total_count = self.db_session.execute(
@@ -72,6 +73,7 @@ class ApiRepository:
         base_stmt = (
             select(Station)
             .join(latest_measurements, Station.id == latest_measurements.c.station_id)
+            .where(Station.is_visible.is_(True))
             .where(latest_measurements.c.value >= Station.evacuation_value)
         )
         total_count = self.db_session.execute(

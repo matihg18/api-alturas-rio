@@ -556,3 +556,72 @@ tbody td.td-mono {
   font-weight: 600;
   color: var(--text-primary);
 }
+
+/* ── Toggle Switch ────────────────────────────────────────────────────────── */
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-switch input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch__track {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  transition: background 0.22s ease, border-color 0.22s ease;
+}
+
+.toggle-switch__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), background 0.22s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* Estado: checked (visible) */
+.toggle-switch input:checked + .toggle-switch__track {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.toggle-switch input:checked + .toggle-switch__track .toggle-switch__thumb {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+/* Estado: deshabilitado (mientras carga) */
+.toggle-switch input:disabled + .toggle-switch__track {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-switch:has(input:disabled) {
+  cursor: not-allowed;
+}
+
+/* ── Fila de estación oculta ─────────────────────────────────────────────── */
+.station-row--hidden td {
+  opacity: 0.5;
+}
+
+.station-row--hidden .td-primary {
+  text-decoration: line-through;
+  text-decoration-color: var(--text-muted);
+}

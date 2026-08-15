@@ -47,6 +47,10 @@ class StationAssignGaugePoint(BaseModel):
     gauge_point_id: Optional[int] = None
 
 
+class StationVisibilityUpdate(BaseModel):
+    is_visible: bool
+
+
 # ── Response models ──────────────────────────────────────────────────────────
 
 class DatumTypeAdminResponse(BaseModel):
@@ -84,6 +88,7 @@ class StationAdminResponse(BaseModel):
     longitud: Optional[float] = None
     alert_value: Optional[float] = None
     evacuation_value: Optional[float] = None
+    is_visible: bool
     gauge_point_id: Optional[int] = None
     gauge_point: Optional[GaugePointAdminResponse] = None
     model_config = ConfigDict(from_attributes=True)
