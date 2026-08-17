@@ -208,6 +208,92 @@ html, body, #root {
 
 .page-header__left { flex: 1; min-width: 0; }
 
+/* Filtros de búsqueda en el page-header */
+.page-header__filters {
+  display: flex;
+  gap: 0.625rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.page-header__filters .form-input {
+  width: 200px;
+}
+
+/* Combobox de río */
+.river-combobox {
+  position: relative;
+  width: 200px;
+}
+
+.river-combobox .form-input {
+  padding-right: 2rem;
+  width: 100%;
+}
+
+.river-combobox__clear {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0.2rem;
+  border-radius: 2px;
+  transition: color 0.15s;
+}
+
+.river-combobox__clear:hover {
+  color: var(--text-primary);
+}
+
+/* Dropdown compartido */
+.river-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  list-style: none;
+  padding: 0.25rem 0;
+  margin: 0;
+  z-index: 200;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+}
+
+.river-dropdown__item {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.river-dropdown__item:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text-primary);
+}
+
+.river-dropdown__item--active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .page-header__filters { width: 100%; }
+  .page-header__filters .form-input,
+  .river-combobox { width: 100%; }
+}
+
 .page-title {
   font-size: 1.25rem;
   font-weight: 700;
