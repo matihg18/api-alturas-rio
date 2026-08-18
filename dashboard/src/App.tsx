@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { apiClient, Station, Measurement, LatestMeasurement } from './services/api';
 import { StationDetail } from './components/StationDetail';
 import { SourcesFooter } from './components/SourcesFooter';
@@ -24,7 +24,11 @@ function App() {
   const [stations, setStations] = useState<StationWithLatest[]>([]);
   const [selectedStationId, setSelectedStationId] = useState<number | null>(requestedId);
   const [history, setHistory] = useState<Measurement[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [stationSearch, setStationSearch] = useState('');
+  const [riverFilter, setRiverFilter] = useState('');
+  const [riverInput, setRiverInput] = useState('');
+  const [riverDropdownOpen, setRiverDropdownOpen] = useState(false);
+  const riverComboboxRef = useRef<HTMLDivElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [status, setStatus] = useState<AppStatus>('loading');
@@ -99,10 +103,52 @@ function App() {
     setSidebarOpen(false);
   };
 
-  const filteredStations = stations.filter(
-    (s) => s.name.toLowerCase().includes(searchQuery.toLowerCase())
-      || s.river.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Unique sorted list of rivers
+  const uniqueRivers = useMemo(() => {
+    const set = new Set(stations.map((s) => s.river));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [stations]);
+
+  // Rivers shown in dropdown: all if empty input, else prefix matches first then internal matches
+  const dropdownRivers = useMemo(() => {
+    if (!riverInput.trim()) return uniqueRivers;
+    const q = riverInput.toLowerCase();
+    const prefix = uniqueRivers.filter((r) => r.toLowerCase().startsWith(q));
+    const internal = uniqueRivers.filter(
+      (r) => !r.toLowerCase().startsWith(q) && r.toLowerCase().includes(q)
+    );
+    return [...prefix, ...internal];
+  }, [uniqueRivers, riverInput]);
+
+  // Close river dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (riverComboboxRef.current && !riverComboboxRef.current.contains(e.target as Node)) {
+        setRiverDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectRiver = (river: string) => {
+    setRiverFilter(river);
+    setRiverInput(river);
+    setRiverDropdownOpen(false);
+  };
+
+  const handleClearRiver = () => {
+    setRiverFilter('');
+    setRiverInput('');
+    setRiverDropdownOpen(false);
+  };
+
+  const filteredStations = stations.filter((s) => {
+    const matchName = s.name.toLowerCase().includes(stationSearch.toLowerCase());
+    const matchRiver = riverInput.trim() === '' ||
+      s.river.toLowerCase().includes(riverInput.toLowerCase());
+    return matchName && matchRiver;
+  });
 
 
   const selectedStation = stations.find((s) => s.id === selectedStationId) ?? null;
@@ -149,18 +195,57 @@ function App() {
             </div>
           </div>
           <div className="sidebar-search">
+            {/* Filtro por nombre de estación */}
             <div className="sidebar-search__inner">
               <input
                 type="text"
-                placeholder="Buscar estación..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar por nombre de estación…"
+                value={stationSearch}
+                onChange={(e) => setStationSearch(e.target.value)}
                 className="sidebar-search__input"
               />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="sidebar-search__clear">
+              {stationSearch && (
+                <button onClick={() => setStationSearch('')} className="sidebar-search__clear">
                   <X size={12} />
                 </button>
+              )}
+            </div>
+
+            {/* Filtro por río — combobox con dropdown */}
+            <div className="sidebar-search__inner" ref={riverComboboxRef} style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="Filtrar por río…"
+                value={riverInput}
+                onChange={(e) => {
+                  setRiverInput(e.target.value);
+                  setRiverFilter('');
+                  setRiverDropdownOpen(true);
+                }}
+                onFocus={() => setRiverDropdownOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' || e.key === 'Enter') setRiverDropdownOpen(false);
+                }}
+                className="sidebar-search__input sidebar-search__input--river"
+                autoComplete="off"
+              />
+              {riverInput && (
+                <button onClick={handleClearRiver} className="sidebar-search__clear sidebar-search__clear--river">
+                  <X size={12} />
+                </button>
+              )}
+              {riverDropdownOpen && dropdownRivers.length > 0 && (
+                <ul className="river-dropdown">
+                  {dropdownRivers.map((river) => (
+                    <li
+                      key={river}
+                      className={`river-dropdown__item${riverFilter === river ? ' river-dropdown__item--active' : ''}`}
+                      onMouseDown={() => handleSelectRiver(river)}
+                    >
+                      {river}
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           </div>

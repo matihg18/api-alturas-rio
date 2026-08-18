@@ -373,8 +373,11 @@ h6 {
 }
 
 .sidebar-search {
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1.5rem;
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .sidebar-search__inner {
@@ -399,6 +402,11 @@ h6 {
   border-color: var(--accent-blue);
 }
 
+/* River combobox: leave room for clear button on right */
+.sidebar-search__input--river {
+  padding-right: 2rem;
+}
+
 .sidebar-search__clear {
   position: absolute;
   right: 0.5rem;
@@ -413,6 +421,43 @@ h6 {
 
 .sidebar-search__clear:hover {
   color: var(--text-secondary);
+}
+
+/* River dropdown */
+.river-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  list-style: none;
+  padding: 0.25rem 0;
+  margin: 0;
+  z-index: 100;
+  max-height: 180px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+.river-dropdown__item {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.river-dropdown__item:hover {
+  background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+  color: var(--text-primary);
+}
+
+.river-dropdown__item--active {
+  background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+  color: var(--accent-blue);
+  font-weight: 500;
 }
 
 .station-list {

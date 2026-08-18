@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Layers, Link2, Link2Off, MapPin, Pencil } from 'lucide-react';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { Layers, Link2, Link2Off, MapPin, Pencil, X } from 'lucide-react';
 import { api } from '../services/adminApi';
 import type { Station, GaugePoint, StationCoordinatesUpdate } from '../services/adminApi';
 
@@ -23,7 +23,11 @@ export function StationsPage() {
   const [coordLng, setCoordLng] = useState<string>('');
   const [savingCoords, setSavingCoords] = useState(false);
 
-  const [search, setSearch] = useState('');
+  const [stationSearch, setStationSearch] = useState('');
+  const [riverFilter, setRiverFilter] = useState('');
+  const [riverInput, setRiverInput] = useState('');
+  const [riverDropdownOpen, setRiverDropdownOpen] = useState(false);
+  const riverComboboxRef = useRef<HTMLDivElement>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const load = async () => {
@@ -135,11 +139,50 @@ export function StationsPage() {
 
   // ── Filtrado ──────────────────────────────────────────────────────────────
 
-  const filtered = stations.filter(
-    (s) => s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.river.toLowerCase().includes(search.toLowerCase()) ||
-      s.source.toLowerCase().includes(search.toLowerCase())
-  );
+  const uniqueRivers = useMemo(() => {
+    const set = new Set(stations.map((s) => s.river));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [stations]);
+
+  const dropdownRivers = useMemo(() => {
+    if (!riverInput.trim()) return uniqueRivers;
+    const q = riverInput.toLowerCase();
+    const prefix = uniqueRivers.filter((r) => r.toLowerCase().startsWith(q));
+    const internal = uniqueRivers.filter(
+      (r) => !r.toLowerCase().startsWith(q) && r.toLowerCase().includes(q)
+    );
+    return [...prefix, ...internal];
+  }, [uniqueRivers, riverInput]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (riverComboboxRef.current && !riverComboboxRef.current.contains(e.target as Node)) {
+        setRiverDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectRiver = (river: string) => {
+    setRiverFilter(river);
+    setRiverInput(river);
+    setRiverDropdownOpen(false);
+  };
+
+  const handleClearRiver = () => {
+    setRiverFilter('');
+    setRiverInput('');
+    setRiverDropdownOpen(false);
+  };
+
+  const filtered = stations.filter((s) => {
+    const matchName = s.name.toLowerCase().includes(stationSearch.toLowerCase()) ||
+      s.source.toLowerCase().includes(stationSearch.toLowerCase());
+    const matchRiver = riverInput.trim() === '' ||
+      s.river.toLowerCase().includes(riverInput.toLowerCase());
+    return matchName && matchRiver;
+  });
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -152,15 +195,55 @@ export function StationsPage() {
             Listado de estaciones hidrológicas. Podés asignar el punto de aforo, editar coordenadas y controlar la visibilidad en el dashboard.
           </p>
         </div>
-        <input
-          id="station-search"
-          type="text"
-          className="form-input"
-          placeholder="Filtrar por nombre, río o fuente…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: 260 }}
-        />
+        <div className="page-header__filters">
+          {/* Filtro por nombre / fuente */}
+          <input
+            id="station-search"
+            type="text"
+            className="form-input"
+            placeholder="Buscar por nombre o fuente…"
+            value={stationSearch}
+            onChange={(e) => setStationSearch(e.target.value)}
+          />
+          {/* Filtro por río — combobox */}
+          <div className="river-combobox" ref={riverComboboxRef}>
+            <input
+              id="river-search"
+              type="text"
+              className="form-input"
+              placeholder="Filtrar por río…"
+              value={riverInput}
+              autoComplete="off"
+              onChange={(e) => {
+                setRiverInput(e.target.value);
+                setRiverFilter('');
+                setRiverDropdownOpen(true);
+              }}
+              onFocus={() => setRiverDropdownOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' || e.key === 'Enter') setRiverDropdownOpen(false);
+              }}
+            />
+            {riverInput && (
+              <button className="river-combobox__clear" onClick={handleClearRiver} title="Limpiar filtro de río">
+                <X size={12} />
+              </button>
+            )}
+            {riverDropdownOpen && dropdownRivers.length > 0 && (
+              <ul className="river-dropdown">
+                {dropdownRivers.map((river) => (
+                  <li
+                    key={river}
+                    className={`river-dropdown__item${riverFilter === river ? ' river-dropdown__item--active' : ''}`}
+                    onMouseDown={() => handleSelectRiver(river)}
+                  >
+                    {river}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="page-body">
