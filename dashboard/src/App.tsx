@@ -307,7 +307,7 @@ function App() {
               <button className="btn" onClick={() => fetchStations()}>Reintentar enlace</button>
             </div>
           ) : selectedStation ? (
-            <StationDetail station={selectedStation} latest={selectedStation.latest} history={history} />
+            <StationDetail station={selectedStation} latest={selectedStation.latest} history={history} allStations={stations} />
           ) : (
             <div className="card-panel empty-panel">
               Seleccione una estación de la lista para ver los datos de telemetría.

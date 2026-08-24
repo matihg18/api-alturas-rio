@@ -1,6 +1,7 @@
 import React from 'react';
 import { Station, Measurement, LatestMeasurement, GaugePoint, apiClient } from '../services/api';
-import { MapPin, Clock, Loader2 } from 'lucide-react';
+import { MapPin, Clock, Loader2, GitCompare, X as XIcon } from 'lucide-react';
+import { CompareStationPicker } from './CompareStationPicker';
 
 interface StationDetailProps {
   station: Station;
@@ -8,24 +9,90 @@ interface StationDetailProps {
   latest: LatestMeasurement | null;
   /** Historial en cero local (del polling de App.tsx) */
   history: Measurement[];
+  /** Lista global de estaciones para el picker de comparación */
+  allStations: Station[];
 }
 
-export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, history }) => {
+export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, history, allStations }) => {
   const [gaugePoint, setGaugePoint] = React.useState<GaugePoint | null>(null);
   const [selectedDatum, setSelectedDatum] = React.useState<string | null>(null);
   const [isDatumLoading, setIsDatumLoading] = React.useState(false);
-  const [fromDate, setFromDate] = React.useState('');
-  const [toDate, setToDate] = React.useState('');
+  const defaultDates = () => {
+    const today = new Date();
+    const monthAgo = new Date(today);
+    monthAgo.setDate(today.getDate() - 30);
+    return {
+      from: monthAgo.toISOString().slice(0, 10),
+      to: today.toISOString().slice(0, 10),
+    };
+  };
+
+  const [fromDate, setFromDate] = React.useState(() => defaultDates().from);
+  const [toDate, setToDate] = React.useState(() => defaultDates().to);
   const [isFiltered, setIsFiltered] = React.useState(false);
   const [isQueryLoading, setIsQueryLoading] = React.useState(false);
   const [displayLatest, setDisplayLatest] = React.useState<LatestMeasurement | null>(latest);
   const [displayHistory, setDisplayHistory] = React.useState<Measurement[]>(history);
   const [displayDatumUsed, setDisplayDatumUsed] = React.useState<string>('LOCAL');
   const [currentPage, setCurrentPage] = React.useState(1);
-  const [hoveredPoint, setHoveredPoint] = React.useState<null | {
-    x: number; y: number; height: number; timestamp: string;
-  }>(null);
   const itemsPerPage = 20;
+
+  // ── Comparación ──────────────────────────────────────────────────────────────
+  const [showPicker, setShowPicker] = React.useState(false);
+  const [compareStation, setCompareStation] = React.useState<Station | null>(null);
+  const [compareHistory, setCompareHistory] = React.useState<Measurement[]>([]);
+  const [isCompareLoading, setIsCompareLoading] = React.useState(false);
+
+  const fetchCompareData = React.useCallback(async (
+    stationId: number,
+    from: string,
+    to: string,
+  ) => {
+    const chunkSize = 100;
+    setIsCompareLoading(true);
+    try {
+      const first = await apiClient.getMeasurements(stationId, chunkSize, 0, undefined, from || undefined, to || undefined);
+      const total = first.total_count;
+      let allItems = [...first.items];
+
+      if (total > chunkSize) {
+        const pages = Math.ceil(total / chunkSize);
+        const rest = await Promise.all(
+          Array.from({ length: pages - 1 }, (_, i) =>
+            apiClient.getMeasurements(stationId, chunkSize, (i + 1) * chunkSize, undefined, from || undefined, to || undefined)
+          )
+        );
+        for (const page of rest) allItems = allItems.concat(page.items);
+        allItems.sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+      }
+
+      setCompareHistory(allItems);
+    } catch (err) {
+      console.error('Error al obtener mediciones de comparación:', err);
+      setCompareHistory([]);
+    } finally {
+      setIsCompareLoading(false);
+    }
+  }, []);
+
+  // Cuando se selecciona una estación para comparar, cargar sus datos
+  const handleSelectCompare = React.useCallback(async (s: Station) => {
+    setCompareStation(s);
+    setShowPicker(false);
+
+    const today = new Date();
+    const monthAgo = new Date(today);
+    monthAgo.setDate(today.getDate() - 30);
+    const defaultFrom = monthAgo.toISOString().slice(0, 10);
+
+    await fetchCompareData(s.id, fromDate || defaultFrom, toDate);
+  }, [fromDate, toDate, fetchCompareData]);
+
+  const handleRemoveCompare = () => {
+    setCompareStation(null);
+    setCompareHistory([]);
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const fetchRecent = React.useCallback(async (datumCode: string | null) => {
     const today = new Date();
@@ -103,11 +170,16 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     setSelectedDatum(null);
     setGaugePoint(null);
     setCurrentPage(1);
-    setFromDate('');
-    setToDate('');
+    const dates = defaultDates();
+    setFromDate(dates.from);
+    setToDate(dates.to);
     setIsFiltered(false);
     setDisplayLatest(latest);
     setDisplayDatumUsed('LOCAL');
+    // Limpiar comparación al cambiar de estación
+    setCompareStation(null);
+    setCompareHistory([]);
+    setShowPicker(false);
 
     if (station.gauge_point_id !== null) {
       apiClient.getGaugePoint(station.id)
@@ -168,14 +240,25 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     setIsFiltered(true);
     setCurrentPage(1);
     await fetchAll(selectedDatum, fromDate, toDate);
+
+    // Actualizar comparación con el mismo rango
+    if (compareStation) {
+      await fetchCompareData(compareStation.id, fromDate, toDate);
+    }
   };
 
   const handleClear = async () => {
-    setFromDate('');
-    setToDate('');
+    const dates = defaultDates();
+    setFromDate(dates.from);
+    setToDate(dates.to);
     setIsFiltered(false);
     setCurrentPage(1);
     await fetchRecent(selectedDatum);
+
+    // Volver a los últimos 30 días para la comparación también
+    if (compareStation) {
+      await fetchCompareData(compareStation.id, dates.from, '');
+    }
   };
 
   const formatDate = (isoString: string) => {
@@ -191,43 +274,129 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
   };
 
+  // ── Chart geometry ────────────────────────────────────────────────────────────
   const chartWidth = 1000;
   const chartHeight = 280;
   const chartPadding = { top: 20, right: 20, bottom: 35, left: 40 };
 
   const hasChart = displayHistory.length > 0;
-  const values = displayHistory.map((m) => m.value);
-  const minVal = hasChart ? Math.min(...values) : 0;
-  const maxVal = hasChart ? Math.max(...values) : 12;
+  const hasCompareChart = compareHistory.length > 0;
+
+  // Calcular rango de tiempo global (ambas series)
+  const allTimestamps = [
+    ...displayHistory.map((m) => new Date(m.date_time).getTime()),
+    ...compareHistory.map((m) => new Date(m.date_time).getTime()),
+  ];
+  const tMin = allTimestamps.length > 0 ? Math.min(...allTimestamps) : 0;
+  const tMax = allTimestamps.length > 0 ? Math.max(...allTimestamps) : 1;
+  const tRange = tMax - tMin || 1;
+
+  // Rango Y unificado cuando hay comparación, independiente cuando no
+  const primaryValues = displayHistory.map((m) => m.value);
+  const compareValues = compareHistory.map((m) => m.value);
+
+  const allValues = hasCompareChart ? [...primaryValues, ...compareValues] : primaryValues;
+  const minVal = allValues.length > 0 ? Math.min(...allValues) : 0;
+  const maxVal = allValues.length > 0 ? Math.max(...allValues) : 12;
   const yRange = maxVal - minVal || 1;
 
-  const getChartX = (index: number, total: number) => {
-    if (total <= 1) return chartPadding.left;
-    return chartPadding.left + (index / (total - 1)) * (chartWidth - chartPadding.left - chartPadding.right);
+  const getChartX = (ts: number): number => {
+    if (tRange === 0) return chartPadding.left;
+    return chartPadding.left + ((ts - tMin) / tRange) * (chartWidth - chartPadding.left - chartPadding.right);
   };
-  const getChartY = (val: number) => {
+
+  const getChartY = (val: number): number => {
     const h = chartHeight - chartPadding.top - chartPadding.bottom;
     return chartHeight - chartPadding.bottom - ((val - minVal) / yRange) * h;
   };
 
-  const chartPoints = displayHistory.map((m, i) => ({
-    x: getChartX(i, displayHistory.length),
+  // Primary series points (time-based X)
+  const primaryPoints = displayHistory.map((m) => ({
+    x: getChartX(new Date(m.date_time).getTime()),
     y: getChartY(m.value),
+    value: m.value,
+    ts: m.date_time,
   }));
 
-  const sliceWidth = chartPoints.length > 1
-    ? (chartWidth - chartPadding.left - chartPadding.right) / (chartPoints.length - 1)
-    : chartWidth;
+  // Compare series points
+  const comparePoints = compareHistory.map((m) => ({
+    x: getChartX(new Date(m.date_time).getTime()),
+    y: getChartY(m.value),
+    value: m.value,
+    ts: m.date_time,
+  }));
 
-  const linePath = chartPoints.length > 0
-    ? `M ${chartPoints.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' L ')}`
-    : '';
-  const areaPath = chartPoints.length > 0
-    ? `${linePath} L ${chartPoints[chartPoints.length - 1].x.toFixed(1)},${getChartY(minVal).toFixed(1)} L ${chartPoints[0].x.toFixed(1)},${getChartY(minVal).toFixed(1)} Z`
-    : '';
+  const makePath = (pts: { x: number; y: number }[]) =>
+    pts.length > 0 ? `M ${pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' L ')}` : '';
+
+  const makeArea = (pts: { x: number; y: number }[], linePath: string) => {
+    if (pts.length === 0) return '';
+    const bottom = getChartY(minVal);
+    return `${linePath} L ${pts[pts.length - 1].x.toFixed(1)},${bottom.toFixed(1)} L ${pts[0].x.toFixed(1)},${bottom.toFixed(1)} Z`;
+  };
+
+  const primaryLinePath = makePath(primaryPoints);
+  const primaryAreaPath = makeArea(primaryPoints, primaryLinePath);
+  const compareLinePath = makePath(comparePoints);
+  const compareAreaPath = makeArea(comparePoints, compareLinePath);
 
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => parseFloat((minVal + f * yRange).toFixed(1)));
 
+  // X-axis ticks derived from unified time range
+  const xTickCount = 7;
+  const xTickTimes = Array.from({ length: xTickCount }, (_, i) =>
+    tMin + (i / (xTickCount - 1)) * tRange
+  );
+
+  // Hover: convertir la posición X del cursor a un timestamp real,
+  // y buscar el punto más cercano EN TIEMPO para cada serie.
+  // Esto garantiza que si dos series miden a la misma hora, los puntos
+  // coincidan en el mismo X; y si no, el usuario ve timestamps reales.
+  const svgRef = React.useRef<SVGSVGElement>(null);
+  const [hoverX, setHoverX] = React.useState<number | null>(null);
+
+  const handleSvgMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const rawX = ((e.clientX - rect.left) / rect.width) * chartWidth;
+    setHoverX(rawX);
+  };
+
+  // Cursor X → timestamp real (interpolación lineal inversa)
+  const hoverTimestamp = React.useMemo(() => {
+    if (hoverX === null) return null;
+    // X = padding.left + ((ts - tMin) / tRange) * drawWidth
+    const drawWidth = chartWidth - chartPadding.left - chartPadding.right;
+    return tMin + ((hoverX - chartPadding.left) / drawWidth) * tRange;
+  }, [hoverX, tMin, tRange]);
+
+  // Para cada serie, encontrar el punto cuyo TIMESTAMP es más cercano al cursor
+  const closestPrimary = React.useMemo(() => {
+    if (hoverTimestamp === null || primaryPoints.length === 0) return null;
+    return primaryPoints.reduce((best, p) =>
+      Math.abs(new Date(p.ts).getTime() - hoverTimestamp) <
+      Math.abs(new Date(best.ts).getTime() - hoverTimestamp)
+        ? p
+        : best
+    );
+  }, [hoverTimestamp, primaryPoints]);
+
+  const closestCompare = React.useMemo(() => {
+    if (hoverTimestamp === null || comparePoints.length === 0) return null;
+    return comparePoints.reduce((best, p) =>
+      Math.abs(new Date(p.ts).getTime() - hoverTimestamp) <
+      Math.abs(new Date(best.ts).getTime() - hoverTimestamp)
+        ? p
+        : best
+    );
+  }, [hoverTimestamp, comparePoints]);
+
+  // Tooltip visible si el cursor está dentro del área del gráfico
+  const isHoverActive = hoverX !== null &&
+    hoverX >= chartPadding.left &&
+    hoverX <= chartWidth - chartPadding.right;
+
+  // ── Tabla ─────────────────────────────────────────────────────────────────────
   const sortedHistory = React.useMemo(
     () => [...displayHistory].sort((a, b) => new Date(b.date_time).getTime() - new Date(a.date_time).getTime()),
     [displayHistory]
@@ -239,6 +408,10 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
   const datumLabel = selectedDatum === null
     ? 'Cero Local'
     : (gaugePoint?.datums.find(d => d.datum_type.code === selectedDatum)?.datum_type.name ?? selectedDatum);
+
+  // Colores
+  const COLOR_PRIMARY = 'var(--accent-blue)';    // azul existente
+  const COLOR_COMPARE = '#f97316';               // naranja
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
@@ -346,9 +519,74 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
       </div>
 
       <div className="card-panel">
-        <h3 style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '1.2rem' }}>
-          Evolución del Nivel
-        </h3>
+        {/* Header de la sección con botón de comparación */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap', gap: '0.8rem' }}>
+          <h3 style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+            Evolución del Nivel
+          </h3>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', position: 'relative' }}>
+            {/* Badge de estación comparada */}
+            {compareStation && (
+              <div className="compare-badge">
+                <span
+                  className="compare-badge__dot"
+                  style={{ background: COLOR_COMPARE }}
+                />
+                <span className="compare-badge__name">{compareStation.name}</span>
+                {isCompareLoading && <Loader2 size={11} className="spin" style={{ color: COLOR_COMPARE }} />}
+                <button
+                  className="compare-badge__remove"
+                  onClick={handleRemoveCompare}
+                  aria-label="Quitar comparación"
+                >
+                  <XIcon size={11} />
+                </button>
+              </div>
+            )}
+
+            {/* Botón comparar / picker */}
+            {!compareStation && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  className={`btn btn-compare${showPicker ? ' btn-compare--active' : ''}`}
+                  onClick={() => setShowPicker((v) => !v)}
+                  title="Comparar con otra estación"
+                >
+                  <GitCompare size={13} />
+                  <span>Comparar</span>
+                </button>
+
+                {showPicker && (
+                  <CompareStationPicker
+                    currentStationId={station.id}
+                    allStations={allStations}
+                    onSelect={handleSelectCompare}
+                    onClose={() => setShowPicker(false)}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Leyenda de series (visible cuando hay comparación) */}
+        {compareStation && (
+          <div className="compare-legend">
+            <div className="compare-legend__item">
+              <span className="compare-legend__dot" style={{ background: COLOR_PRIMARY }} />
+              <span className="compare-legend__label">{station.name}</span>
+              <span className="compare-legend__sub">cero local</span>
+            </div>
+            <div className="compare-legend__item">
+              <span className="compare-legend__dot" style={{ background: COLOR_COMPARE }} />
+              <span className="compare-legend__label">{compareStation.name}</span>
+              <span className="compare-legend__sub">cero local</span>
+            </div>
+          </div>
+        )}
+
+        {/* Filtro de fechas */}
         <div style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -408,7 +646,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
               {isQueryLoading ? 'Consultando...' : 'Consultar'}
             </button>
 
-            {(isFiltered || fromDate || toDate) && (
+            {isFiltered && (
               <button
                 onClick={handleClear}
                 disabled={isQueryLoading || isDatumLoading}
@@ -435,7 +673,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
             borderRadius: '2px',
             padding: '10px'
           }}>
-            {isDatumLoading && (
+            {(isDatumLoading || isCompareLoading) && (
               <div style={{
                 position: 'absolute',
                 top: '10px',
@@ -452,17 +690,29 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 zIndex: 10
               }}>
                 <Loader2 size={12} className="spin" style={{ color: 'var(--accent-blue)' }} />
-                <span>Convirtiendo datum...</span>
+                <span>{isDatumLoading ? 'Convirtiendo datum...' : 'Cargando comparación...'}</span>
               </div>
             )}
-            <svg key={station.id} viewBox={`0 0 ${chartWidth} ${chartHeight}`} style={{ width: '100%', height: 'auto', aspectRatio: `${chartWidth} / ${chartHeight}`, overflow: 'visible', minWidth: '450px' }}>
+            <svg
+              ref={svgRef}
+              key={station.id}
+              viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+              style={{ width: '100%', height: 'auto', aspectRatio: `${chartWidth} / ${chartHeight}`, overflow: 'visible', minWidth: '450px', cursor: 'crosshair' }}
+              onMouseMove={handleSvgMouseMove}
+              onMouseLeave={() => setHoverX(null)}
+            >
               <defs>
-                <linearGradient id="area-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.08" />
-                  <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity="0.0" />
+                <linearGradient id="area-grad-primary" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor={COLOR_PRIMARY} stopOpacity="0.12" />
+                  <stop offset="100%" stopColor={COLOR_PRIMARY} stopOpacity="0.0" />
+                </linearGradient>
+                <linearGradient id="area-grad-compare" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor={COLOR_COMPARE} stopOpacity="0.10" />
+                  <stop offset="100%" stopColor={COLOR_COMPARE} stopOpacity="0.0" />
                 </linearGradient>
               </defs>
 
+              {/* Grid Y */}
               {yTicks.map((tickVal, tickIdx) => {
                 const y = getChartY(tickVal);
                 return (
@@ -475,70 +725,141 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 );
               })}
 
-              {areaPath && <path d={areaPath} fill="url(#area-grad)" />}
-              {linePath && <path d={linePath} fill="none" stroke="var(--accent-blue)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />}
-
-              {chartPoints.length > 0 && (
-                <circle cx={chartPoints[chartPoints.length - 1].x} cy={chartPoints[chartPoints.length - 1].y} r="3" fill="var(--text-primary)" stroke="var(--accent-blue)" strokeWidth="1" />
-              )}
-
-              {hoveredPoint && (
-                <g>
-                  <line x1={hoveredPoint.x} y1={chartPadding.top} x2={hoveredPoint.x} y2={chartHeight - chartPadding.bottom} stroke="var(--accent-blue)" strokeWidth="0.8" strokeDasharray="2 3" />
-                  <circle cx={hoveredPoint.x} cy={hoveredPoint.y} r="5" fill="var(--text-primary)" stroke="var(--accent-blue)" strokeWidth="1.5" />
-                </g>
-              )}
-
-              {displayHistory.length > 1 && (() => {
-                const n = Math.min(8, displayHistory.length);
-                const tickIndices = Array.from({ length: n }, (_, i) =>
-                  i === 0 ? 0
-                    : i === n - 1 ? displayHistory.length - 1
-                      : Math.round((i / (n - 1)) * (displayHistory.length - 1))
-                );
-                return tickIndices.map((idx, tickPos) => {
-                  const m = displayHistory[idx];
-                  if (!m) return null;
-                  const x = getChartX(idx, displayHistory.length);
-                  const anchor = tickPos === 0 ? 'start' : tickPos === n - 1 ? 'end' : 'middle';
-                  return (
-                    <g key={`x-lbl-${idx}`}>
-                      <line x1={x} y1={chartHeight - chartPadding.bottom} x2={x} y2={chartHeight - chartPadding.bottom + 4} stroke="rgba(255,255,255,0.1)" strokeWidth="0.8" />
-                      <text x={x} y={chartHeight - chartPadding.bottom + 15} textAnchor={anchor} fill="var(--text-muted)" className="mono" style={{ fontSize: '0.6rem' }}>
-                        {formatXLabel(m.date_time)}
-                      </text>
-                    </g>
-                  );
-                });
-              })()}
-
-              {hoveredPoint && (() => {
-                const tw = 120; const th = 35;
-                const tx = hoveredPoint.x > chartWidth - tw - 10 ? hoveredPoint.x - tw - 10 : hoveredPoint.x + 10;
-                const ty = hoveredPoint.y < th + 10 ? hoveredPoint.y + 15 : hoveredPoint.y - th - 10;
+              {/* Grid X ticks (tiempo real) */}
+              {xTickTimes.map((t, i) => {
+                const x = getChartX(t);
+                const anchor = i === 0 ? 'start' : i === xTickCount - 1 ? 'end' : 'middle';
                 return (
-                  <g style={{ pointerEvents: 'none' }}>
-                    <rect x={tx} y={ty} width={tw} height={th} fill="var(--bg-primary)" stroke="var(--border-color)" strokeWidth="1" rx="3" />
-                    <text x={tx + 8} y={ty + 13} fill="var(--text-primary)" className="mono" style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>
-                      Nivel: {hoveredPoint.height.toFixed(2)}m
-                    </text>
-                    <text x={tx + 8} y={ty + 25} fill="var(--text-secondary)" style={{ fontSize: '0.55rem' }}>
-                      {formatDate(hoveredPoint.timestamp)}
+                  <g key={`x-lbl-${i}`}>
+                    <line x1={x} y1={chartHeight - chartPadding.bottom} x2={x} y2={chartHeight - chartPadding.bottom + 4} stroke="rgba(255,255,255,0.1)" strokeWidth="0.8" />
+                    <text x={x} y={chartHeight - chartPadding.bottom + 15} textAnchor={anchor} fill="var(--text-muted)" className="mono" style={{ fontSize: '0.6rem' }}>
+                      {formatXLabel(new Date(t).toISOString())}
                     </text>
                   </g>
                 );
-              })()}
+              })}
 
-              {chartPoints.map((point, idx) => (
-                <rect
-                  key={`slice-${idx}`}
-                  x={point.x - sliceWidth / 2} y={chartPadding.top}
-                  width={sliceWidth} height={chartHeight - chartPadding.top - chartPadding.bottom}
-                  fill="transparent" style={{ cursor: 'pointer' }}
-                  onMouseEnter={() => setHoveredPoint({ x: point.x, y: point.y, height: displayHistory[idx].value, timestamp: displayHistory[idx].date_time })}
-                  onMouseLeave={() => setHoveredPoint(null)}
+              {/* Área y línea — serie comparación (debajo de la principal) */}
+              {hasCompareChart && (
+                <>
+                  {compareAreaPath && <path d={compareAreaPath} fill="url(#area-grad-compare)" />}
+                  {compareLinePath && (
+                    <path d={compareLinePath} fill="none" stroke={COLOR_COMPARE} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+                  )}
+                </>
+              )}
+
+              {/* Área y línea — serie principal */}
+              {primaryAreaPath && <path d={primaryAreaPath} fill="url(#area-grad-primary)" />}
+              {primaryLinePath && (
+                <path d={primaryLinePath} fill="none" stroke={COLOR_PRIMARY} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              )}
+
+              {/* Puntos fijos al final de cada serie (solo cuando NO hay hover) */}
+              {!isHoverActive && primaryPoints.length > 0 && (
+                <circle
+                  cx={primaryPoints[primaryPoints.length - 1].x}
+                  cy={primaryPoints[primaryPoints.length - 1].y}
+                  r="3" fill="var(--text-primary)" stroke={COLOR_PRIMARY} strokeWidth="1"
                 />
-              ))}
+              )}
+              {!isHoverActive && hasCompareChart && comparePoints.length > 0 && (
+                <circle
+                  cx={comparePoints[comparePoints.length - 1].x}
+                  cy={comparePoints[comparePoints.length - 1].y}
+                  r="3" fill="var(--text-primary)" stroke={COLOR_COMPARE} strokeWidth="1"
+                />
+              )}
+
+              {/* Línea de cursor vertical + etiqueta de tiempo + círculos de hover */}
+              {isHoverActive && hoverX !== null && (
+                <g>
+                  {/* Línea vertical en el X del cursor */}
+                  <line
+                    x1={hoverX}
+                    y1={chartPadding.top}
+                    x2={hoverX}
+                    y2={chartHeight - chartPadding.bottom}
+                    stroke="rgba(255,255,255,0.18)"
+                    strokeWidth="1"
+                    strokeDasharray="3 3"
+                  />
+                  {/* Etiqueta de fecha en el cursor (en el eje X) */}
+                  {hoverTimestamp !== null && (() => {
+                    const label = formatXLabel(new Date(hoverTimestamp).toISOString());
+                    const lx = Math.min(
+                      Math.max(hoverX, chartPadding.left + 20),
+                      chartWidth - chartPadding.right - 20,
+                    );
+                    return (
+                      <>
+                        <rect
+                          x={lx - 18} y={chartHeight - chartPadding.bottom + 4}
+                          width={36} height={11}
+                          fill="rgba(14,20,35,0.9)" rx="2"
+                        />
+                        <text
+                          x={lx} y={chartHeight - chartPadding.bottom + 13}
+                          textAnchor="middle"
+                          fill="rgba(255,255,255,0.55)"
+                          className="mono"
+                          style={{ fontSize: '0.5rem' }}
+                        >
+                          {label}
+                        </text>
+                      </>
+                    );
+                  })()}
+                  {/* Círculos de hover en el punto más cercano de cada serie */}
+                  {closestPrimary && (
+                    <circle cx={closestPrimary.x} cy={closestPrimary.y} r="5" fill="var(--text-primary)" stroke={COLOR_PRIMARY} strokeWidth="1.5" />
+                  )}
+                  {closestCompare && (
+                    <circle cx={closestCompare.x} cy={closestCompare.y} r="5" fill="var(--text-primary)" stroke={COLOR_COMPARE} strokeWidth="1.5" />
+                  )}
+                </g>
+              )}
+
+              {/* Tooltip — anclado al cursor (hoverX), no al punto más cercano */}
+              {isHoverActive && hoverX !== null && (closestPrimary || closestCompare) && (() => {
+                const hasTwo = !!closestPrimary && !!closestCompare;
+                const tw = hasTwo ? 170 : 140;
+                const th = hasTwo ? 62 : 40;
+                // Posicionar el tooltip junto al cursor, no al punto
+                const tx = hoverX > chartWidth - tw - 14 ? hoverX - tw - 8 : hoverX + 8;
+                const midY = hasTwo
+                  ? ((closestPrimary?.y ?? 0) + (closestCompare?.y ?? 0)) / 2
+                  : (closestPrimary?.y ?? closestCompare?.y ?? chartPadding.top);
+                const ty = midY < th + 10 ? midY + 15 : midY - th - 10;
+
+                return (
+                  <g style={{ pointerEvents: 'none' }}>
+                    <rect x={tx} y={ty} width={tw} height={th} fill="#0F172A" stroke="var(--border-color)" strokeWidth="1" rx="4" />
+                    {closestPrimary && (
+                      <>
+                        <circle cx={tx + 10} cy={ty + 13} r="3" fill={COLOR_PRIMARY} />
+                        <text x={tx + 19} y={ty + 17} fill="var(--text-primary)" className="mono" style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>
+                          {closestPrimary.value.toFixed(2)}m
+                        </text>
+                        <text x={tx + 19} y={ty + 29} fill="var(--text-secondary)" style={{ fontSize: '0.55rem' }}>
+                          {formatDate(closestPrimary.ts)}
+                        </text>
+                      </>
+                    )}
+                    {closestCompare && (
+                      <>
+                        <circle cx={tx + 10} cy={hasTwo ? ty + 43 : ty + 13} r="3" fill={COLOR_COMPARE} />
+                        <text x={tx + 19} y={hasTwo ? ty + 47 : ty + 17} fill="var(--text-primary)" className="mono" style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>
+                          {closestCompare.value.toFixed(2)}m
+                        </text>
+                        <text x={tx + 19} y={hasTwo ? ty + 59 : ty + 29} fill="var(--text-secondary)" style={{ fontSize: '0.55rem' }}>
+                          {formatDate(closestCompare.ts)}
+                        </text>
+                      </>
+                    )}
+                  </g>
+                );
+              })()}
             </svg>
           </div>
         )}
@@ -609,6 +930,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
   );
 };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function renderDatumButton(
   code: string,
