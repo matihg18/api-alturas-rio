@@ -16,7 +16,7 @@ SOURCE_NAME = "Prefectura"
 
 
 class PrefecturaIncrementalStrategy(ScraperStrategy):
-    def __init__(self, incremental_hours: int, allowed_rivers: list[str] | None = None):
+    def __init__(self, incremental_hours: int = 48, allowed_rivers: list[str] | None = None):
         self.client = PrefecturaClient()
         self.parser = PrefecturaBackFillParser(BASE_DOMAIN)
         self.backfill_days = max(1, math.ceil(incremental_hours / 24))
