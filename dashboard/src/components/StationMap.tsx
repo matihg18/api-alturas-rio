@@ -16,10 +16,10 @@ export type Trend = 'up' | 'down' | 'stable' | 'none';
 
 function makeTrendIcon(trend: Trend): L.DivIcon {
   const configs: Record<Trend, { symbol: string; bg: string; border: string }> = {
-    up:     { symbol: '▲', bg: '#16a34a', border: '#15803d' },
-    down:   { symbol: '▼', bg: '#dc2626', border: '#b91c1c' },
+    up: { symbol: '▲', bg: '#dc2626', border: '#b91c1c' },
+    down: { symbol: '▼', bg: '#16a34a', border: '#15803d' },
     stable: { symbol: '=', bg: '#2563eb', border: '#1d4ed8' },
-    none:   { symbol: '✕', bg: '#94a3b8', border: '#64748b' },
+    none: { symbol: '✕', bg: '#94a3b8', border: '#64748b' },
   };
   const { symbol, bg, border } = configs[trend];
 
@@ -69,12 +69,12 @@ function StationPopup({ station, latest }: StationPopupProps) {
 
   const formattedDate = latest?.date_time
     ? new Date(latest.date_time).toLocaleString('es-AR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
     : null;
 
   return (
