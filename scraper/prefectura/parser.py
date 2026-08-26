@@ -8,24 +8,48 @@ from scraper.schemas import RawStationData, RawMeasurementData
 
 logger = logging.getLogger(__name__)
 
+# Mapa de abreviaturas de meses (ES e EN) al formato numérico.
+_MESES = {
+    'ENE': '01', 'JAN': '01',
+    'FEB': '02',
+    'MAR': '03',
+    'ABR': '04', 'APR': '04',
+    'MAY': '05',
+    'JUN': '06',
+    'JUL': '07',
+    'AGO': '08', 'AUG': '08',
+    'SEP': '09',
+    'OCT': '10',
+    'NOV': '11',
+    'DIC': '12', 'DEC': '12'
+}
+
+
+def _parse_timestamp(date_str: str) -> datetime:
+    """Convierte '14/FEB/26 - 1200' → datetime. Comparte lógica entre parsers."""
+    try:
+        clean_str = date_str.upper()
+        for abbr, num in _MESES.items():
+            if abbr in clean_str:
+                clean_str = clean_str.replace(abbr, num)
+        return datetime.strptime(clean_str, "%d/%m/%y - %H%M")
+    except Exception as e:
+        logger.error(f"Error parseando fecha '{date_str}': {e}")
+        return datetime.now()
+
+
+def _parse_float(v: Any) -> Optional[float]:
+    """Convierte un valor de texto a float, devuelve None si es inválido."""
+    if v in ("-", "", "S/E", None):
+        return None
+    try:
+        return float(str(v).replace(",", "."))
+    except ValueError:
+        return None
+
 
 class PrefecturaIncrementalParser:
     """Parsea mapa.php para extraer estaciones y su última medición."""
-
-    MESES = {
-        'ENE': '01', 'JAN': '01',
-        'FEB': '02',
-        'MAR': '03',
-        'ABR': '04', 'APR': '04',
-        'MAY': '05',
-        'JUN': '06',
-        'JUL': '07',
-        'AGO': '08', 'AUG': '08',
-        'SEP': '09',
-        'OCT': '10',
-        'NOV': '11',
-        'DIC': '12', 'DEC': '12'
-    }
 
     def __init__(self):
         self.pattern = re.compile(r"var mapData = '(.*?)';", re.DOTALL)
@@ -54,8 +78,8 @@ class PrefecturaIncrementalParser:
                     evacuation_value=item.get("EVACUACION"),
                 ))
 
-                timestamp = self._parse_timestamp(item.get("FECHAHORA", ""))
-                value = self._parse_float(item.get("ULTIMOREGISTRO"))
+                timestamp = _parse_timestamp(item.get("FECHAHORA", ""))
+                value = _parse_float(item.get("ULTIMOREGISTRO"))
 
                 if value is not None:
                     measurements.append(RawMeasurementData(
@@ -69,26 +93,6 @@ class PrefecturaIncrementalParser:
         except Exception as e:
             logger.error(f"Error en parseo: {e}")
             return [], []
-
-    def _parse_timestamp(self, date_str: str) -> datetime:
-        try:
-            clean_str = date_str.upper()
-            for esp, num in self.MESES.items():
-                if esp in clean_str:
-                    clean_str = clean_str.replace(esp, num)
-            return datetime.strptime(clean_str, "%d/%m/%y - %H%M")
-        except Exception as e:
-            logger.error(f"Error parseando fecha {date_str}: {e}")
-            return datetime.now()
-
-    @staticmethod
-    def _parse_float(v: Any) -> Optional[float]:
-        if v in ("-", "", "S/E", None):
-            return None
-        try:
-            return float(str(v).replace(",", "."))
-        except ValueError:
-            return None
 
 
 class PrefecturaBackFillParser:
@@ -128,6 +132,60 @@ class PrefecturaBackFillParser:
 
         logger.debug(f"Found {len(ports_found)} stations with history URLs")
         return ports_found
+
+    def parse_recent_measurements(self, html_content: str) -> List[RawMeasurementData]:
+        """Extrae el Último Registro y Registro Anterior de la tabla principal.
+
+        La página de histórico tiene un lag: los datos más recientes solo aparecen
+        en la tabla principal antes de que Prefectura actualice el histórico.
+        Capturar estos dos puntos evita el bache de hasta 12h en el dashboard.
+        El repositorio deduplica por (station_id, date_time), así que cuando el
+        histórico se actualice y el incremental los vuelva a traer, no se duplican.
+        """
+        soup = BeautifulSoup(html_content, 'html.parser')
+        measurements = []
+
+        table_body = soup.find('tbody')
+        rows = table_body.find_all('tr') if table_body else soup.find_all('tr')
+
+        for row in rows:
+            th = row.find('th')
+            if not th:
+                continue
+
+            station_name = th.get_text(strip=True)
+
+            def _get_td_text(label: str) -> Optional[str]:
+                td = row.find('td', attrs={'data-label': label})
+                return td.get_text(strip=True) if td else None
+
+            # ── Último Registro ───────────────────────────────────────────
+            value = _parse_float(_get_td_text('Ultimo Registro:'))
+            fecha_td = row.find('td', attrs={'data-label': 'Fecha Hora:'})
+            if fecha_td:
+                b_tag = fecha_td.find('b')
+                fecha_str = b_tag.get_text(strip=True) if b_tag else fecha_td.get_text(strip=True)
+                if value is not None:
+                    measurements.append(RawMeasurementData(
+                        station_name=station_name,
+                        source="prefectura",
+                        date_time=_parse_timestamp(fecha_str),
+                        value=value,
+                    ))
+
+            # ── Registro Anterior ─────────────────────────────────────────
+            prev_value = _parse_float(_get_td_text('Registro Anterior:'))
+            prev_fecha_str = _get_td_text('Fecha Anterior:')
+            if prev_value is not None and prev_fecha_str:
+                measurements.append(RawMeasurementData(
+                    station_name=station_name,
+                    source="prefectura",
+                    date_time=_parse_timestamp(prev_fecha_str),
+                    value=prev_value,
+                ))
+
+        logger.debug(f"parse_recent_measurements: {len(measurements)} measurements extracted")
+        return measurements
 
     def parse_history_table(
         self, html_content: str, station_name: str

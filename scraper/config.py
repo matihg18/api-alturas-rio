@@ -18,6 +18,7 @@ ALLOWED_RIVERS = (
 SCRAPER_TICK = int(os.getenv("SCRAPER_TICK", "60"))
 PREFECTURA_ENABLED = os.getenv("PREFECTURA_ENABLED", "true").lower() == "true"
 PREFECTURA_INTERVAL = int(os.getenv("PREFECTURA_INTERVAL", "43200"))
+PREFECTURA_INCREMENTAL_HOURS = int(os.getenv("PREFECTURA_INCREMENTAL_HOURS", "48"))
 
 # --- INA API ---
 INA_API_BASE_URL = os.getenv("INA_API_BASE_URL", "https://alerta.ina.gob.ar/a5")
