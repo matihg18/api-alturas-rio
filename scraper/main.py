@@ -63,7 +63,10 @@ SOURCES: list[SourceDefinition] = [
         name="Prefectura",
         enabled=config.PREFECTURA_ENABLED,
         interval=config.PREFECTURA_INTERVAL,
-        make_incremental=PrefecturaIncrementalStrategy,
+        make_incremental=lambda: PrefecturaIncrementalStrategy(
+            incremental_hours=config.PREFECTURA_INCREMENTAL_HOURS,
+            allowed_rivers=config.ALLOWED_RIVERS,
+        ),
         make_backfill=lambda days: PrefecturaBackFillStrategy(days, allowed_rivers=config.ALLOWED_RIVERS),
         make_syncer=PrefecturaStationSyncer,
         allowed_rivers=config.ALLOWED_RIVERS,
