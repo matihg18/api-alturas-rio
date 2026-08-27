@@ -24,7 +24,21 @@ class ScraperContext:
     def _filter_stations(self, stations: list[RawStationData]) -> list[RawStationData]:
         if not self.allowed_rivers:
             return stations
-        filtered = [s for s in stations if is_river_allowed(s.river, self.allowed_rivers)]
+
+        def _passes(s: RawStationData) -> bool:
+            if s.river:
+                return is_river_allowed(s.river, self.allowed_rivers)
+            # Fallback: si el río no está seteado, aceptar solo si el nombre
+            # de la estación EMPIEZA con un río permitido (convención INA:
+            # "Gualeguaychú - RN Nº 130", "Gualeguay - Villaguay", etc.).
+            norm_name = normalize_river(s.name)
+            return any(
+                norm_name.startswith(normalize_river(r))
+                for r in self.allowed_rivers
+                if r
+            )
+
+        filtered = [s for s in stations if _passes(s)]
         skipped = len(stations) - len(filtered)
         if skipped:
             logger.debug(f"Filtered out {skipped} station(s) not in allowed rivers.")
