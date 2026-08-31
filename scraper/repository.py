@@ -43,6 +43,9 @@ class ScraperRepository:
                     station.longitud = raw_station.longitud
                     station.alert_value = raw_station.alert_value
                     station.evacuation_value = raw_station.evacuation_value
+                    if raw_station.river and not station.river:
+                        station.river = raw_station.river
+                        logger.info(f"UPDATED RIVER for station '{station.name}': '{station.river}'")
                     logger.debug(f"UPDATED STATION: {station.name} ({station.source})")
 
                 count += 1

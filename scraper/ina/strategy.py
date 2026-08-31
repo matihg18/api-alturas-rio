@@ -63,6 +63,15 @@ def _get_data(
 
     stations = parser.parse_series(series_list)
 
+    if allowed_rivers:
+        for station in stations:
+            if not station.river:
+                norm_name = normalize_river(station.name)
+                for r in allowed_rivers:
+                    if norm_name.startswith(normalize_river(r)):
+                        station.river = r
+                        break
+
     # --- Request por estación ---
     all_measurements: List[RawMeasurementData] = []
     for serie in series_list:
