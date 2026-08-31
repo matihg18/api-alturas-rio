@@ -42,13 +42,35 @@ def _get_data(
     # Filtrar por río antes de hacer requests por estación.
     # Lista vacía = sin filtro (acepta todas las series).
     if allowed_rivers:
-        series_list = [
-            s for s in series_list
-            if is_river_allowed((s.get("estacion") or {}).get("rio") or "", allowed_rivers)
-        ]
+        def _passes_river_filter(s: dict) -> bool:
+            estacion = s.get("estacion") or {}
+            rio = estacion.get("rio") or ""
+            if rio:
+                # Caso normal: el campo río está poblado.
+                return is_river_allowed(rio, allowed_rivers)
+            # Fallback: río ausente → solo aceptar si el nombre de la estación
+            # EMPIEZA con el nombre de un río permitido (convención del INA:
+            # "Gualeguaychú - RN Nº 130", "Uruguay - El Soberbio", etc.).
+            nombre = normalize_river(estacion.get("nombre") or "")
+            return any(
+                nombre.startswith(normalize_river(r))
+                for r in allowed_rivers
+                if r
+            )
+
+        series_list = [s for s in series_list if _passes_river_filter(s)]
         logger.info(f"INA: {len(series_list)} series after river filter {allowed_rivers}")
 
     stations = parser.parse_series(series_list)
+
+    if allowed_rivers:
+        for station in stations:
+            if not station.river:
+                norm_name = normalize_river(station.name)
+                for r in allowed_rivers:
+                    if norm_name.startswith(normalize_river(r)):
+                        station.river = r
+                        break
 
     # --- Request por estación ---
     all_measurements: List[RawMeasurementData] = []
