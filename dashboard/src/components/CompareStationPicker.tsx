@@ -3,15 +3,15 @@ import { Station } from '../services/api';
 import { Search, X } from 'lucide-react';
 
 interface CompareStationPickerProps {
-  /** Estación que ya está siendo visualizada (para excluirla de la lista) */
-  currentStationId: number;
+  /** IDs de estaciones a excluir (la principal + las ya comparadas) */
+  excludedIds: number[];
   allStations: Station[];
   onSelect: (station: Station) => void;
   onClose: () => void;
 }
 
 export const CompareStationPicker: React.FC<CompareStationPickerProps> = ({
-  currentStationId,
+  excludedIds,
   allStations,
   onSelect,
   onClose,
@@ -27,18 +27,18 @@ export const CompareStationPicker: React.FC<CompareStationPickerProps> = ({
     const q = query.toLowerCase().trim();
     return allStations.filter(
       (s) =>
-        s.id !== currentStationId &&
+        !excludedIds.includes(s.id) &&
         (q === '' ||
           s.name.toLowerCase().includes(q) ||
           s.river.toLowerCase().includes(q)),
     );
-  }, [allStations, currentStationId, query]);
+  }, [allStations, excludedIds, query]);
 
   return (
     <div className="compare-picker" role="dialog" aria-label="Seleccionar estación para comparar">
       {/* Header */}
       <div className="compare-picker__header">
-        <span className="compare-picker__title">Comparar con…</span>
+        <span className="compare-picker__title">Agregar estación…</span>
         <button className="compare-picker__close" onClick={onClose} aria-label="Cerrar">
           <X size={14} />
         </button>
