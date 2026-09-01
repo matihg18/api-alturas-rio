@@ -1,5 +1,6 @@
 import math
 import re
+import time
 import logging
 from typing import List, Tuple
 from scraper.prefectura.client import PrefecturaClient
@@ -81,6 +82,9 @@ class PrefecturaIncrementalStrategy(ScraperStrategy):
                         url=detail_url,
                         http_status_code=status,
                     )
+            finally:
+                # Delay para evitar rate limiting del servidor de Prefectura.
+                time.sleep(0.5)
 
         # Las estaciones se sincronizan desde PrefecturaStationSyncer (mapa.php).
         return [], all_measurements
@@ -147,5 +151,9 @@ class PrefecturaBackFillStrategy(ScraperStrategy):
                         url=history_url,
                         http_status_code=status,
                     )
+            finally:
+                # Delay para evitar rate limiting del servidor de Prefectura.
+                # Sin esto, 90 requests en ráfaga provoca 403/SSL errors a partir de la estación ~25.
+                time.sleep(1.5)
 
         return [], all_measurements
