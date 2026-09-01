@@ -102,8 +102,7 @@ class INAIncrementalStrategy(ScraperStrategy):
         return _get_data(self.client, self.parser, timestart, timeend, self.allowed_rivers, on_error)
 
 
-BACKFILL_CHUNK_DAYS = 30  # Ventana máxima por request. INA hace timeout con rangos muy grandes
-                          # en estaciones con mediciones horarias (~8760 obs para 365 días).
+BACKFILL_CHUNK_DAYS = 30
 
 
 class INABackFillStrategy(ScraperStrategy):
@@ -164,4 +163,3 @@ class INABackFillStrategy(ScraperStrategy):
             all_measurements.extend(measurements)
 
         return all_stations, all_measurements
-
