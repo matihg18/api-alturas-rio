@@ -124,6 +124,9 @@ class INAIncrementalStrategy(ScraperStrategy):
         return _get_data(self.client, self.parser, timestart, timeend, self.allowed_rivers, on_error)
 
 
+BACKFILL_CHUNK_DAYS = 30
+
+
 class INABackFillStrategy(ScraperStrategy):
 
     def __init__(self, backfill_days: int, allowed_rivers: Optional[list[str]] = None):
@@ -132,13 +135,53 @@ class INABackFillStrategy(ScraperStrategy):
         self.backfill_days = backfill_days
         self.allowed_rivers = [normalize_river(r) for r in (allowed_rivers or [])]
 
+    def _build_chunks(self) -> List[Tuple[str, str]]:
+        """Divide el rango total en ventanas de BACKFILL_CHUNK_DAYS días.
+
+        Retorna lista de (timestart, timeend) en orden cronológico ascendente.
+        """
+        now = datetime.now(timezone.utc)
+        chunks = []
+        chunk_end = now
+        while True:
+            chunk_start = chunk_end - timedelta(days=BACKFILL_CHUNK_DAYS)
+            total_start = now - timedelta(days=self.backfill_days)
+            if chunk_start <= total_start:
+                chunk_start = total_start
+                chunks.append((
+                    chunk_start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    chunk_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                ))
+                break
+            chunks.append((
+                chunk_start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                chunk_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            ))
+            chunk_end = chunk_start
+        return list(reversed(chunks))
+
     def get_data(
         self,
         on_error: OnErrorCallback = None,
     ) -> Tuple[List[RawStationData], List[RawMeasurementData]]:
-        now = datetime.now(timezone.utc)
-        timeend = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-        timestart = (now - timedelta(days=self.backfill_days)).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
+        chunks = self._build_chunks()
+        n_chunks = len(chunks)
+        logger.info(
+            f"INA BACKFILL: {self.backfill_days} days split into {n_chunks} chunks "
+            f"of up to {BACKFILL_CHUNK_DAYS} days each"
         )
-        return _get_data(self.client, self.parser, timestart, timeend, self.allowed_rivers, on_error)
+
+        all_stations: List[RawStationData] = []
+        all_measurements: List[RawMeasurementData] = []
+
+        for i, (timestart, timeend) in enumerate(chunks, start=1):
+            logger.info(f"INA BACKFILL: chunk {i}/{n_chunks} [{timestart} → {timeend}]")
+            stations, measurements = _get_data(
+                self.client, self.parser, timestart, timeend, self.allowed_rivers, on_error
+            )
+            # Las estaciones son las mismas en todos los chunks; basta con el primero.
+            if i == 1:
+                all_stations = stations
+            all_measurements.extend(measurements)
+
+        return all_stations, all_measurements
