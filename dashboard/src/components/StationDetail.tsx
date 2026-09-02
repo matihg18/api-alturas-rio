@@ -750,7 +750,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 {compareEntries.map((entry) => {
                   const color = COMPARE_COLORS[entry.colorIndex];
                   return (
-                    <linearGradient key={entry.colorIndex} id={`area-grad-compare-${entry.colorIndex}`} x1="0%" y1="0%" x2="0%" y2="100%">{
+                    <linearGradient key={entry.colorIndex} id={`area-grad-compare-${entry.colorIndex}`} x1="0%" y1="0%" x2="0%" y2="100%">
                       <stop offset="0%" stopColor={color} stopOpacity="0.10" />
                       <stop offset="100%" stopColor={color} stopOpacity="0.0" />
                     </linearGradient>
