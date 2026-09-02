@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { Layers, MapPin, Hash, Sliders, LayoutDashboard } from 'lucide-react';
+import { Layers, MapPin, Hash, Sliders, LayoutDashboard, Download } from 'lucide-react';
 
 const NAV = [
-  { to: '/stations',    label: 'Estaciones',         icon: Layers },
-  { to: '/gauge-points',label: 'Puntos de aforo',    icon: MapPin  },
-  { to: '/datum-types', label: 'Ceros de ref.',       icon: Hash    },
-  { to: '/offsets',     label: 'Correcciones',        icon: Sliders },
+  { to: '/stations',            label: 'Estaciones',          icon: Layers   },
+  { to: '/gauge-points',        label: 'Puntos de aforo',     icon: MapPin   },
+  { to: '/datum-types',         label: 'Ceros de ref.',       icon: Hash     },
+  { to: '/offsets',             label: 'Correcciones',        icon: Sliders  },
+  { to: '/measurements-export', label: 'Exportar mediciones', icon: Download },
 ];
 
 export function Sidebar() {
