@@ -1,8 +1,12 @@
+import csv
+import io
+from datetime import date, timedelta
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import select
-from common.models import Station, GaugePoint, GaugeDatum, ReferenceZeroType
+from sqlalchemy import select, asc
+from common.models import Station, GaugePoint, GaugeDatum, ReferenceZeroType, Measurement
 from api.admin_schemas import (
     GaugePointCreate,
     GaugePointUpdate,
@@ -257,3 +261,53 @@ def admin_delete_offset(offset_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Offset {offset_id} not found")
     db.delete(offset)
     db.commit()
+
+
+# ── Measurements Export ──────────────────────────────────────────────────────
+
+@router.get("/measurements/export")
+def admin_export_measurements_csv(
+    station_id: int = Query(..., description="ID de la estación"),
+    from_date: date = Query(..., description="Fecha de inicio (YYYY-MM-DD)"),
+    to_date: date = Query(..., description="Fecha de fin (YYYY-MM-DD)"),
+    db: Session = Depends(get_db),
+):
+    """Exporta las mediciones de una estación en un rango de fechas como CSV."""
+    station = db.get(Station, station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station {station_id} not found")
+
+    if from_date > to_date:
+        raise HTTPException(
+            status_code=422,
+            detail="from_date no puede ser posterior a to_date",
+        )
+
+    stmt = (
+        select(Measurement)
+        .where(Measurement.station_id == station_id)
+        .where(Measurement.date_time >= from_date)
+        .where(Measurement.date_time < (to_date + timedelta(days=1)))
+        .order_by(asc(Measurement.date_time))
+    )
+
+    measurements = db.execute(stmt).scalars().all()
+
+    # Construir CSV en memoria
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["date_time", "value"])
+    for m in measurements:
+        writer.writerow([m.date_time.isoformat(), m.value])
+
+    output.seek(0)
+
+    # Sanitizar nombre de estación para usarlo en el nombre de archivo
+    safe_name = station.name.replace(' ', '_').replace('/', '-')
+    filename = f"mediciones_{safe_name}_{station_id}_{from_date}_{to_date}.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

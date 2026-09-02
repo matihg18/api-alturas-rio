@@ -102,4 +102,24 @@ export const api = {
     update: (id: number, body: OffsetUpdate)   => request<Offset>('PUT', `/offsets/${id}`, body),
     delete: (id: number)                       => request<void>('DELETE', `/offsets/${id}`),
   },
+  measurements: {
+    exportCsv: async (stationId: number, fromDate: string, toDate: string): Promise<{ blob: Blob; filename: string }> => {
+      const url = `${BASE}/measurements/export?station_id=${stationId}&from_date=${fromDate}&to_date=${toDate}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+          const err = await res.json();
+          detail = err.detail ?? detail;
+        } catch { /* noop */ }
+        throw new Error(detail);
+      }
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match ? match[1] : `mediciones_${stationId}_${fromDate}_${toDate}.csv`;
+      const blob = await res.blob();
+      return { blob, filename };
+    },
+  },
 };
+
