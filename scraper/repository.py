@@ -39,10 +39,6 @@ class ScraperRepository:
                     self.db.flush()
                     logger.info(f"NEW STATION: {station.name} ({station.source})")
                 else:
-                    # Solo sobreescribir campos opcionales si el scraper trae un valor
-                    # concreto. Esto evita que un scraper que no conoce las coordenadas
-                    # (ej. CARU devuelve latitud=None) pise los valores cargados
-                    # manualmente desde el panel de administrador.
                     if raw_station.latitud is not None:
                         station.latitud = raw_station.latitud
                     if raw_station.longitud is not None:
