@@ -39,10 +39,14 @@ class ScraperRepository:
                     self.db.flush()
                     logger.info(f"NEW STATION: {station.name} ({station.source})")
                 else:
-                    station.latitud = raw_station.latitud
-                    station.longitud = raw_station.longitud
-                    station.alert_value = raw_station.alert_value
-                    station.evacuation_value = raw_station.evacuation_value
+                    if raw_station.latitud is not None:
+                        station.latitud = raw_station.latitud
+                    if raw_station.longitud is not None:
+                        station.longitud = raw_station.longitud
+                    if raw_station.alert_value is not None:
+                        station.alert_value = raw_station.alert_value
+                    if raw_station.evacuation_value is not None:
+                        station.evacuation_value = raw_station.evacuation_value
                     if raw_station.river and not station.river:
                         station.river = raw_station.river
                         logger.info(f"UPDATED RIVER for station '{station.name}': '{station.river}'")
