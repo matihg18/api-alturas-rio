@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Layers, MapPin, Hash, Sliders, LayoutDashboard, Download } from 'lucide-react';
+import { Layers, MapPin, Hash, Sliders, LayoutDashboard, Download, Upload } from 'lucide-react';
 
 const NAV = [
   { to: '/stations',            label: 'Estaciones',          icon: Layers   },
@@ -7,6 +7,7 @@ const NAV = [
   { to: '/datum-types',         label: 'Ceros de ref.',       icon: Hash     },
   { to: '/offsets',             label: 'Correcciones',        icon: Sliders  },
   { to: '/measurements-export', label: 'Exportar mediciones', icon: Download },
+  { to: '/measurements-import', label: 'Importar mediciones', icon: Upload   },
 ];
 
 export function Sidebar() {

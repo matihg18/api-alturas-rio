@@ -97,3 +97,10 @@ class StationAdminResponse(BaseModel):
     gauge_point_id: Optional[int] = None
     gauge_point: Optional[GaugePointAdminResponse] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class MeasurementImportResult(BaseModel):
+    total: int
+    inserted: int
+    skipped: int
+

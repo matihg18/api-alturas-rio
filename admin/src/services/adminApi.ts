@@ -41,10 +41,10 @@ export interface Offset {
 
 export interface GaugePointCreate { name: string; river?: string; description?: string; }
 export interface GaugePointUpdate { name?: string; river?: string; description?: string; }
-export interface DatumTypeCreate  { code: string; name: string; description?: string; }
-export interface DatumTypeUpdate  { name?: string; description?: string; }
-export interface OffsetCreate     { gauge_point_id: number; datum_type_id: number; offset_local_to_datum: number; }
-export interface OffsetUpdate     { offset_local_to_datum: number; }
+export interface DatumTypeCreate { code: string; name: string; description?: string; }
+export interface DatumTypeUpdate { name?: string; description?: string; }
+export interface OffsetCreate { gauge_point_id: number; datum_type_id: number; offset_local_to_datum: number; }
+export interface OffsetUpdate { offset_local_to_datum: number; }
 export interface AssignGaugePoint { gauge_point_id: number | null; }
 export interface StationCoordinatesUpdate { latitud: number | null; longitud: number | null; }
 
@@ -79,28 +79,28 @@ async function request<T>(
 // Stations
 export const api = {
   stations: {
-    list:              ()                                         => request<Station[]>('GET', '/stations'),
-    assignGaugePoint:  (id: number, body: AssignGaugePoint)      => request<Station>('PUT', `/stations/${id}/gauge-point`, body),
-    toggleVisibility:  (id: number, is_visible: boolean)         => request<Station>('PATCH', `/stations/${id}/visibility`, { is_visible }),
+    list: () => request<Station[]>('GET', '/stations'),
+    assignGaugePoint: (id: number, body: AssignGaugePoint) => request<Station>('PUT', `/stations/${id}/gauge-point`, body),
+    toggleVisibility: (id: number, is_visible: boolean) => request<Station>('PATCH', `/stations/${id}/visibility`, { is_visible }),
     updateCoordinates: (id: number, body: StationCoordinatesUpdate) => request<Station>('PATCH', `/stations/${id}/coordinates`, body),
   },
   gaugePoints: {
-    list:   ()                                  => request<GaugePoint[]>('GET', '/gauge-points'),
-    create: (body: GaugePointCreate)            => request<GaugePoint>('POST', '/gauge-points', body),
-    update: (id: number, body: GaugePointUpdate)=> request<GaugePoint>('PUT', `/gauge-points/${id}`, body),
-    delete: (id: number)                        => request<void>('DELETE', `/gauge-points/${id}`),
+    list: () => request<GaugePoint[]>('GET', '/gauge-points'),
+    create: (body: GaugePointCreate) => request<GaugePoint>('POST', '/gauge-points', body),
+    update: (id: number, body: GaugePointUpdate) => request<GaugePoint>('PUT', `/gauge-points/${id}`, body),
+    delete: (id: number) => request<void>('DELETE', `/gauge-points/${id}`),
   },
   datumTypes: {
-    list:   ()                                  => request<DatumType[]>('GET', '/datum-types'),
-    create: (body: DatumTypeCreate)             => request<DatumType>('POST', '/datum-types', body),
+    list: () => request<DatumType[]>('GET', '/datum-types'),
+    create: (body: DatumTypeCreate) => request<DatumType>('POST', '/datum-types', body),
     update: (id: number, body: DatumTypeUpdate) => request<DatumType>('PUT', `/datum-types/${id}`, body),
-    delete: (id: number)                        => request<void>('DELETE', `/datum-types/${id}`),
+    delete: (id: number) => request<void>('DELETE', `/datum-types/${id}`),
   },
   offsets: {
-    list:   (gaugePointId?: number)            => request<Offset[]>('GET', gaugePointId ? `/offsets?gauge_point_id=${gaugePointId}` : '/offsets'),
-    create: (body: OffsetCreate)               => request<Offset>('POST', '/offsets', body),
-    update: (id: number, body: OffsetUpdate)   => request<Offset>('PUT', `/offsets/${id}`, body),
-    delete: (id: number)                       => request<void>('DELETE', `/offsets/${id}`),
+    list: (gaugePointId?: number) => request<Offset[]>('GET', gaugePointId ? `/offsets?gauge_point_id=${gaugePointId}` : '/offsets'),
+    create: (body: OffsetCreate) => request<Offset>('POST', '/offsets', body),
+    update: (id: number, body: OffsetUpdate) => request<Offset>('PUT', `/offsets/${id}`, body),
+    delete: (id: number) => request<void>('DELETE', `/offsets/${id}`),
   },
   measurements: {
     exportCsv: async (stationId: number, fromDate: string, toDate: string): Promise<{ blob: Blob; filename: string }> => {
@@ -120,6 +120,37 @@ export const api = {
       const blob = await res.blob();
       return { blob, filename };
     },
+
+    importCsv: async (stationId: number, file: File): Promise<MeasurementImportResult> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${BASE}/measurements/import?station_id=${stationId}`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+          const err = await res.json();
+          if (typeof err.detail === 'object' && err.detail?.message) {
+            const errorLines = (err.detail.errors as string[]).slice(0, 5);
+            const suffix = err.detail.errors.length > 5
+              ? `\n…y ${err.detail.errors.length - 5} error(es) más.`
+              : '';
+            detail = `${err.detail.message}\n\n${errorLines.join('\n')}${suffix}`;
+          } else {
+            detail = err.detail ?? detail;
+          }
+        } catch { /* noop */ }
+        throw new Error(detail);
+      }
+      return res.json() as Promise<MeasurementImportResult>;
+    },
   },
 };
 
+export interface MeasurementImportResult {
+  total: number;
+  inserted: number;
+  skipped: number;
+}

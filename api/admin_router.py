@@ -1,8 +1,8 @@
 import csv
 import io
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, asc
@@ -21,6 +21,7 @@ from api.admin_schemas import (
     StationVisibilityUpdate,
     StationCoordinatesUpdate,
     StationAdminResponse,
+    MeasurementImportResult,
 )
 from api.dependencies import get_db
 
@@ -272,7 +273,6 @@ def admin_export_measurements_csv(
     to_date: date = Query(..., description="Fecha de fin (YYYY-MM-DD)"),
     db: Session = Depends(get_db),
 ):
-    """Exporta las mediciones de una estación en un rango de fechas como CSV."""
     station = db.get(Station, station_id)
     if not station:
         raise HTTPException(status_code=404, detail=f"Station {station_id} not found")
@@ -293,7 +293,6 @@ def admin_export_measurements_csv(
 
     measurements = db.execute(stmt).scalars().all()
 
-    # Construir CSV en memoria
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["date_time", "value"])
@@ -302,7 +301,6 @@ def admin_export_measurements_csv(
 
     output.seek(0)
 
-    # Sanitizar nombre de estación para usarlo en el nombre de archivo
     safe_name = station.name.replace(' ', '_').replace('/', '-')
     filename = f"mediciones_{safe_name}_{station_id}_{from_date}_{to_date}.csv"
 
@@ -311,3 +309,115 @@ def admin_export_measurements_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+EXPECTED_HEADER = ["date_time", "value"]
+ISO_FORMAT = "%Y-%m-%dT%H:%M:%S"
+
+
+@router.post("/measurements/import", response_model=MeasurementImportResult)
+async def admin_import_measurements_csv(
+    station_id: int = Query(..., description="ID de la estación destino"),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=422,
+            detail="El archivo debe tener extensión .csv",
+        )
+
+    station = db.get(Station, station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station {station_id} not found")
+
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=422,
+            detail="El archivo no es UTF-8 válido",
+        )
+
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+
+    if not rows:
+        raise HTTPException(status_code=422, detail="El archivo está vacío")
+
+    header = [col.strip() for col in rows[0]]
+    if header != EXPECTED_HEADER:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Cabecera inválida: se esperaba `date_time,value`, "
+                f"se recibió `{','.join(header)}`"
+            ),
+        )
+
+    data_rows = [r for r in rows[1:] if any(cell.strip() for cell in r)]
+
+    validation_errors: list[str] = []
+    parsed: list[tuple[datetime, float]] = []
+
+    for idx, row in enumerate(data_rows, start=2):
+        if len(row) != 2:
+            validation_errors.append(
+                f"Fila {idx}: se esperaban 2 columnas, se encontraron {len(row)}"
+            )
+            continue
+
+        raw_dt, raw_val = row[0].strip(), row[1].strip()
+
+        try:
+            dt = datetime.strptime(raw_dt, ISO_FORMAT)
+        except ValueError:
+            validation_errors.append(
+                f"Fila {idx}: date_time `{raw_dt}` no tiene el formato esperado "
+                f"(YYYY-MM-DDTHH:MM:SS)"
+            )
+            dt = None
+
+        try:
+            val = float(raw_val)
+        except ValueError:
+            validation_errors.append(
+                f"Fila {idx}: value `{raw_val}` no es un número válido"
+            )
+            val = None
+
+        if dt is not None and val is not None:
+            parsed.append((dt, val))
+
+    if validation_errors:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "El CSV contiene errores de formato. No se insertó ninguna medición.",
+                "errors": validation_errors,
+            },
+        )
+
+    total = len(parsed)
+
+    existing_stmt = select(Measurement.date_time).where(
+        Measurement.station_id == station_id
+    )
+    existing_datetimes: set[datetime] = set(
+        db.execute(existing_stmt).scalars().all()
+    )
+
+    new_measurements = [
+        Measurement(station_id=station_id, date_time=dt, value=val)
+        for dt, val in parsed
+        if dt not in existing_datetimes
+    ]
+
+    inserted = len(new_measurements)
+    skipped = total - inserted
+
+    if new_measurements:
+        db.add_all(new_measurements)
+        db.commit()
+
+    return MeasurementImportResult(total=total, inserted=inserted, skipped=skipped)
