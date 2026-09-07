@@ -289,9 +289,9 @@ def test_export_csv_has_correct_header(client, seed_data):
 def test_export_csv_includes_measurements_in_range(client, seed_data):
     r = client.get("/admin/measurements/export?station_id=1&from_date=2026-02-21&to_date=2026-02-22")
     assert r.status_code == 200
-    lines = [l for l in r.text.splitlines() if l and not l.startswith("date_time")]
+    lines = [row for row in r.text.splitlines() if row and not row.startswith("date_time")]
     assert len(lines) == 2
-    values = [float(l.split(",")[1]) for l in lines]
+    values = [float(row.split(",")[1]) for row in lines]
     assert 4.7 in values
     assert 5.1 in values
 
@@ -299,7 +299,7 @@ def test_export_csv_includes_measurements_in_range(client, seed_data):
 def test_export_csv_excludes_measurements_outside_range(client, seed_data):
     r = client.get("/admin/measurements/export?station_id=1&from_date=2026-02-21&to_date=2026-02-21")
     assert r.status_code == 200
-    lines = [l for l in r.text.splitlines() if l and not l.startswith("date_time")]
+    lines = [row for row in r.text.splitlines() if row and not row.startswith("date_time")]
     assert len(lines) == 1
     assert float(lines[0].split(",")[1]) == 4.7
 
@@ -307,7 +307,7 @@ def test_export_csv_excludes_measurements_outside_range(client, seed_data):
 def test_export_csv_empty_range_returns_only_header(client, seed_data):
     r = client.get("/admin/measurements/export?station_id=1&from_date=2020-01-01&to_date=2020-01-31")
     assert r.status_code == 200
-    lines = [l for l in r.text.splitlines() if l]
+    lines = [row for row in r.text.splitlines() if row]
     assert lines == ["date_time,value"]
 
 
@@ -487,4 +487,3 @@ def test_import_csv_only_header_no_rows(client, seed_data):
     assert data["total"] == 0
     assert data["inserted"] == 0
     assert data["skipped"] == 0
-
