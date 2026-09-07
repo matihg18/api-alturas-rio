@@ -6,6 +6,7 @@ import { GaugePointsPage } from './pages/GaugePointsPage';
 import { DatumTypesPage } from './pages/DatumTypesPage';
 import { OffsetsPage } from './pages/OffsetsPage';
 import { MeasurementsExportPage } from './pages/MeasurementsExportPage';
+import { MeasurementsImportPage } from './pages/MeasurementsImportPage';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
               <Route path="/datum-types"          element={<DatumTypesPage />}         />
               <Route path="/offsets"              element={<OffsetsPage />}            />
               <Route path="/measurements-export" element={<MeasurementsExportPage />} />
+              <Route path="/measurements-import" element={<MeasurementsImportPage />} />
             </Routes>
           </main>
         </div>

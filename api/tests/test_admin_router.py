@@ -271,3 +271,219 @@ def test_admin_delete_offset(client, seed_data):
 def test_admin_delete_offset_not_found(client, seed_data):
     r = client.delete("/admin/offsets/999")
     assert r.status_code == 404
+
+
+def test_export_csv_returns_csv_content_type(client, seed_data):
+    r = client.get("/admin/measurements/export?station_id=1&from_date=2026-02-01&to_date=2026-02-28")
+    assert r.status_code == 200
+    assert "text/csv" in r.headers["content-type"]
+
+
+def test_export_csv_has_correct_header(client, seed_data):
+    r = client.get("/admin/measurements/export?station_id=1&from_date=2026-02-01&to_date=2026-02-28")
+    assert r.status_code == 200
+    first_line = r.text.splitlines()[0]
+    assert first_line == "date_time,value"
+
+
+def test_export_csv_includes_measurements_in_range(client, seed_data):
+    r = client.get("/admin/measurements/export?station_id=1&from_date=2026-02-21&to_date=2026-02-22")
+    assert r.status_code == 200
+    lines = [row for row in r.text.splitlines() if row and not row.startswith("date_time")]
+    assert len(lines) == 2
+    values = [float(row.split(",")[1]) for row in lines]
+    assert 4.7 in values
+    assert 5.1 in values
+
+
+def test_export_csv_excludes_measurements_outside_range(client, seed_data):
+    r = client.get("/admin/measurements/export?station_id=1&from_date=2026-02-21&to_date=2026-02-21")
+    assert r.status_code == 200
+    lines = [row for row in r.text.splitlines() if row and not row.startswith("date_time")]
+    assert len(lines) == 1
+    assert float(lines[0].split(",")[1]) == 4.7
+
+
+def test_export_csv_empty_range_returns_only_header(client, seed_data):
+    r = client.get("/admin/measurements/export?station_id=1&from_date=2020-01-01&to_date=2020-01-31")
+    assert r.status_code == 200
+    lines = [row for row in r.text.splitlines() if row]
+    assert lines == ["date_time,value"]
+
+
+def test_export_csv_station_not_found(client, seed_data):
+    r = client.get("/admin/measurements/export?station_id=999&from_date=2026-01-01&to_date=2026-01-31")
+    assert r.status_code == 404
+
+
+def test_export_csv_filename_contains_station_name_and_id(client, seed_data):
+    r = client.get("/admin/measurements/export?station_id=1&from_date=2026-02-01&to_date=2026-02-28")
+    assert r.status_code == 200
+    disposition = r.headers.get("content-disposition", "")
+    assert "testStation1" in disposition
+    assert "_1_" in disposition
+
+
+def test_export_csv_from_date_after_to_date_returns_error(client, seed_data):
+    r = client.get("/admin/measurements/export?station_id=1&from_date=2026-03-01&to_date=2026-02-01")
+    assert r.status_code == 422
+
+
+def _csv_file(content: str):
+    return {"file": ("mediciones.csv", content.encode(), "text/csv")}
+
+
+def test_import_csv_inserts_new_measurements(client, seed_data):
+    csv_content = "date_time,value\n2026-01-10T00:00:00,3.50\n2026-01-10T06:00:00,3.75\n"
+    r = client.post(
+        "/admin/measurements/import?station_id=1",
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 2
+    assert data["inserted"] == 2
+    assert data["skipped"] == 0
+
+
+def test_import_csv_skips_existing_measurements(client, seed_data):
+    csv_content = (
+        "date_time,value\n"
+        "2026-02-21T00:00:00,99.99\n"
+        "2026-02-22T00:00:00,99.99\n"
+        "2026-01-05T00:00:00,2.80\n"
+    )
+    r = client.post(
+        "/admin/measurements/import?station_id=1",
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 3
+    assert data["inserted"] == 1
+    assert data["skipped"] == 2
+
+
+def test_import_csv_existing_values_not_overwritten(client, seed_data, db_session):
+    from sqlalchemy import select
+    from common.models import Measurement
+    from datetime import datetime
+
+    csv_content = "date_time,value\n2026-02-21T00:00:00,99.99\n"
+    client.post("/admin/measurements/import?station_id=1", files=_csv_file(csv_content))
+
+    m = db_session.execute(
+        select(Measurement).where(
+            Measurement.station_id == 1,
+            Measurement.date_time == datetime(2026, 2, 21, 0, 0, 0),
+        )
+    ).scalars().first()
+    if m is None:
+        m = db_session.execute(
+            select(Measurement).where(Measurement.station_id == 1)
+            .order_by(Measurement.date_time)
+        ).scalars().first()
+    assert m is not None
+    assert m.value != 99.99
+
+
+def test_import_csv_station_not_found(client, seed_data):
+    csv_content = "date_time,value\n2026-01-01T00:00:00,3.0\n"
+    r = client.post(
+        "/admin/measurements/import?station_id=999",
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 404
+
+
+def test_import_csv_wrong_extension_rejected(client, seed_data):
+    r = client.post(
+        "/admin/measurements/import?station_id=1",
+        files={"file": ("mediciones.txt", b"date_time,value\n2026-01-01T00:00:00,3.0\n", "text/plain")},
+    )
+    assert r.status_code == 422
+
+
+def test_import_csv_wrong_header_rejected(client, seed_data):
+    csv_content = "timestamp,nivel\n2026-01-01T00:00:00,3.0\n"
+    r = client.post(
+        "/admin/measurements/import?station_id=1",
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 422
+    assert "Cabecera inválida" in r.json()["detail"]
+
+
+def test_import_csv_extra_columns_rejected(client, seed_data):
+    csv_content = "date_time,value,extra\n2026-01-01T00:00:00,3.0,foo\n"
+    r = client.post(
+        "/admin/measurements/import?station_id=1",
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 422
+
+
+def test_import_csv_invalid_datetime_format_rejected(client, seed_data):
+    csv_content = "date_time,value\n01/01/2026 00:00,3.0\n"
+    r = client.post(
+        "/admin/measurements/import?station_id=1",
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 422
+    detail = r.json()["detail"]
+    assert detail["errors"]
+    assert "Fila 2" in detail["errors"][0]
+
+
+def test_import_csv_invalid_value_rejected(client, seed_data):
+    csv_content = "date_time,value\n2026-01-01T00:00:00,abc\n"
+    r = client.post(
+        "/admin/measurements/import?station_id=1",
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 422
+    detail = r.json()["detail"]
+    assert detail["errors"]
+    assert "Fila 2" in detail["errors"][0]
+
+
+def test_import_csv_one_bad_row_rejects_entire_file(client, seed_data, db_session):
+    from sqlalchemy import select
+    from common.models import Measurement
+
+    before = db_session.execute(select(Measurement).where(Measurement.station_id == 1)).scalars().all()
+
+    csv_content = (
+        "date_time,value\n"
+        "2026-01-01T00:00:00,3.0\n"
+        "2026-01-02T00:00:00,MALO\n"
+        "2026-01-03T00:00:00,3.5\n"
+    )
+    r = client.post(
+        "/admin/measurements/import?station_id=1",
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 422
+
+    after = db_session.execute(select(Measurement).where(Measurement.station_id == 1)).scalars().all()
+    assert len(before) == len(after)
+
+
+def test_import_csv_empty_file_rejected(client, seed_data):
+    r = client.post(
+        "/admin/measurements/import?station_id=1",
+        files=_csv_file(""),
+    )
+    assert r.status_code == 422
+
+
+def test_import_csv_only_header_no_rows(client, seed_data):
+    r = client.post(
+        "/admin/measurements/import?station_id=1",
+        files=_csv_file("date_time,value\n"),
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 0
+    assert data["inserted"] == 0
+    assert data["skipped"] == 0
