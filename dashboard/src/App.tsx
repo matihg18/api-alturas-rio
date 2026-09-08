@@ -51,13 +51,24 @@ function App() {
   const fetchStations = useCallback(async (silent = false) => {
     if (!silent) setStatus('loading');
     try {
-      const stationList = await apiClient.getStations();
-      const withLatest: StationWithLatest[] = await Promise.all(
-        stationList.map(async (s) => {
-          try { return { ...s, latest: await apiClient.getLatestMeasurement(s.id) }; }
-          catch { return { ...s, latest: null }; }
-        })
-      );
+      const [stationList, bulk] = await Promise.all([
+        apiClient.getStations(),
+        apiClient.getLatestMeasurementsBulk(),
+      ]);
+
+      const bulkMap = new Map(bulk.items.map((entry) => [entry.station_id, entry]));
+
+      const withLatest: StationWithLatest[] = stationList.map((s) => {
+        const entry = bulkMap.get(s.id);
+        if (!entry?.latest) return { ...s, latest: null };
+        const latest: LatestMeasurement = {
+          ...entry.latest,
+          datum_used: 'LOCAL',
+          conversion_available: false,
+        };
+        return { ...s, latest };
+      });
+
       setStations(withLatest);
       setErrorMsg('');
       setStatus('ok');
@@ -103,13 +114,11 @@ function App() {
     setSidebarOpen(false);
   };
 
-  // Unique sorted list of rivers
   const uniqueRivers = useMemo(() => {
     const set = new Set(stations.map((s) => s.river));
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
   }, [stations]);
 
-  // Rivers shown in dropdown: all if empty input, else prefix matches first then internal matches
   const dropdownRivers = useMemo(() => {
     if (!riverInput.trim()) return uniqueRivers;
     const q = riverInput.toLowerCase();
@@ -120,7 +129,6 @@ function App() {
     return [...prefix, ...internal];
   }, [uniqueRivers, riverInput]);
 
-  // Close river dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (riverComboboxRef.current && !riverComboboxRef.current.contains(e.target as Node)) {
