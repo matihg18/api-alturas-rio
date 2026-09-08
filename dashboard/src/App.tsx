@@ -51,13 +51,30 @@ function App() {
   const fetchStations = useCallback(async (silent = false) => {
     if (!silent) setStatus('loading');
     try {
-      const stationList = await apiClient.getStations();
-      const withLatest: StationWithLatest[] = await Promise.all(
-        stationList.map(async (s) => {
-          try { return { ...s, latest: await apiClient.getLatestMeasurement(s.id) }; }
-          catch { return { ...s, latest: null }; }
-        })
-      );
+      // 2 requests en total, independiente del número de estaciones:
+      //   1. Lista de estaciones
+      //   2. Última medición de todas (bulk, 1 query SQL en el backend)
+      const [stationList, bulk] = await Promise.all([
+        apiClient.getStations(),
+        apiClient.getLatestMeasurementsBulk(),
+      ]);
+
+      // Indexamos por station_id para lookup O(1)
+      const bulkMap = new Map(bulk.items.map((entry) => [entry.station_id, entry]));
+
+      const withLatest: StationWithLatest[] = stationList.map((s) => {
+        const entry = bulkMap.get(s.id);
+        if (!entry?.latest) return { ...s, latest: null };
+        // El bulk devuelve Measurement; lo extendemos con los campos de LatestMeasurement
+        // (datum_used y conversion_available). El bulk siempre usa LOCAL sin conversión.
+        const latest: LatestMeasurement = {
+          ...entry.latest,
+          datum_used: 'LOCAL',
+          conversion_available: false,
+        };
+        return { ...s, latest };
+      });
+
       setStations(withLatest);
       setErrorMsg('');
       setStatus('ok');
