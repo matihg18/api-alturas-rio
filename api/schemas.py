@@ -74,6 +74,16 @@ class LatestMeasurementResponse(MeasurementResponse):
     conversion_available: bool = False
 
 
+class StationTrendMeasurements(BaseModel):
+    station_id: int
+    latest: Optional[MeasurementResponse] = None
+    previous: Optional[MeasurementResponse] = None
+
+
+class BulkLatestMeasurementsResponse(BaseModel):
+    items: List[StationTrendMeasurements]
+
+
 class ReferenceZeroTypeResponse(BaseModel):
     id: int
     code: str
