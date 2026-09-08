@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
-import type { Station, LatestMeasurement } from '../services/api';
+import type { Station, LatestMeasurement, Measurement } from '../services/api';
 import { StationMap } from '../components/StationMap';
 import type { StationWithLatest } from '../components/StationMap';
 import { SourcesFooter } from '../components/SourcesFooter';
@@ -26,36 +26,48 @@ export function MapPage() {
     else setIsRefreshing(true);
     try {
       const list: Station[] = await apiClient.getStations();
-      const withLatest: StationWithLatest[] = await Promise.all(
-        list.map(async (s) => {
-          try {
-            const latest: LatestMeasurement = await apiClient.getLatestMeasurement(s.id);
 
-            // Fetch the 2 most recent measurements to compute trend
-            let trend: StationWithLatest['trend'] = 'stable';
+      const CONCURRENCY_LIMIT = 8;
+      const results: StationWithLatest[] = [];
+
+      for (let i = 0; i < list.length; i += CONCURRENCY_LIMIT) {
+        const chunk = list.slice(i, i + CONCURRENCY_LIMIT);
+        const chunkResults = await Promise.all(
+          chunk.map(async (s) => {
             try {
               const history = await apiClient.getMeasurements(s.id, 2, 0);
-              // getMeasurements returns items in ascending order (reversed internally)
-              // items[0] = older, items[1] = newest
               const items = history.items;
+
+              if (items.length === 0) {
+                return { ...s, latest: null, trend: 'none' as const };
+              }
+
+              const newestItem: Measurement = items[items.length - 1];
+              const latest: LatestMeasurement = {
+                ...newestItem,
+                datum_used: history.datum_used,
+                conversion_available: history.conversion_available,
+              };
+
+              let trend: StationWithLatest['trend'] = 'stable';
               if (items.length >= 2) {
                 const prev = items[0].value;
-                const curr = items[1].value;
+                const curr = items[items.length - 1].value;
                 if (curr > prev) trend = 'up';
                 else if (curr < prev) trend = 'down';
                 else trend = 'stable';
               }
-            } catch {
-              trend = 'stable';
-            }
 
-            return { ...s, latest, trend };
-          } catch {
-            return { ...s, latest: null, trend: 'none' as const };
-          }
-        }),
-      );
-      setStations(withLatest);
+              return { ...s, latest, trend };
+            } catch {
+              return { ...s, latest: null, trend: 'none' as const };
+            }
+          }),
+        );
+        results.push(...chunkResults);
+      }
+
+      setStations(results);
       setStatus('ok');
     } catch {
       setStatus('error');
