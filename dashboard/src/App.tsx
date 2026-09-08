@@ -51,22 +51,16 @@ function App() {
   const fetchStations = useCallback(async (silent = false) => {
     if (!silent) setStatus('loading');
     try {
-      // 2 requests en total, independiente del número de estaciones:
-      //   1. Lista de estaciones
-      //   2. Última medición de todas (bulk, 1 query SQL en el backend)
       const [stationList, bulk] = await Promise.all([
         apiClient.getStations(),
         apiClient.getLatestMeasurementsBulk(),
       ]);
 
-      // Indexamos por station_id para lookup O(1)
       const bulkMap = new Map(bulk.items.map((entry) => [entry.station_id, entry]));
 
       const withLatest: StationWithLatest[] = stationList.map((s) => {
         const entry = bulkMap.get(s.id);
         if (!entry?.latest) return { ...s, latest: null };
-        // El bulk devuelve Measurement; lo extendemos con los campos de LatestMeasurement
-        // (datum_used y conversion_available). El bulk siempre usa LOCAL sin conversión.
         const latest: LatestMeasurement = {
           ...entry.latest,
           datum_used: 'LOCAL',
@@ -120,13 +114,11 @@ function App() {
     setSidebarOpen(false);
   };
 
-  // Unique sorted list of rivers
   const uniqueRivers = useMemo(() => {
     const set = new Set(stations.map((s) => s.river));
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
   }, [stations]);
 
-  // Rivers shown in dropdown: all if empty input, else prefix matches first then internal matches
   const dropdownRivers = useMemo(() => {
     if (!riverInput.trim()) return uniqueRivers;
     const q = riverInput.toLowerCase();
@@ -137,7 +129,6 @@ function App() {
     return [...prefix, ...internal];
   }, [uniqueRivers, riverInput]);
 
-  // Close river dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (riverComboboxRef.current && !riverComboboxRef.current.contains(e.target as Node)) {
