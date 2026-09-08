@@ -106,36 +106,6 @@ def get_measurements_by_station_id(
     )
 
 
-@app.get("/measurements/latest/{station_id}", response_model=LatestMeasurementResponse)
-@limiter.limit(RATE_LIMIT_DEFAULT)
-def get_latest_measurement_by_station_id(
-    request: Request,
-    station_id: int,
-    datum: Optional[str] = Query(None, description="Código de datum destino: IGN, WHARTON"),
-    db: Session = Depends(get_db)
-):
-    repository = ApiRepository(db)
-
-    station = repository.get_station_by_id(station_id)
-    if not station:
-        raise HTTPException(status_code=404, detail=f"Station with id {station_id} not found")
-
-    measurement = repository.get_latest_measurement_by_station_id(station_id)
-    if not measurement:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No measurements found for station {station_id}"
-        )
-
-    offset, datum_used, conversion_available = _get_datum_context(db, station_id, datum)
-    response = LatestMeasurementResponse.model_validate(measurement)
-    response.datum_used = datum_used
-    response.conversion_available = conversion_available
-    if offset is not None:
-        response.value = datum_convert(measurement.value, offset)
-    return response
-
-
 @app.get("/measurements/latest/bulk", response_model=BulkLatestMeasurementsResponse)
 @limiter.limit(RATE_LIMIT_DEFAULT)
 def get_latest_measurements_bulk(
@@ -171,6 +141,36 @@ def get_latest_measurements_bulk(
         ))
 
     return BulkLatestMeasurementsResponse(items=items)
+
+
+@app.get("/measurements/latest/{station_id}", response_model=LatestMeasurementResponse)
+@limiter.limit(RATE_LIMIT_DEFAULT)
+def get_latest_measurement_by_station_id(
+    request: Request,
+    station_id: int,
+    datum: Optional[str] = Query(None, description="Código de datum destino: IGN, WHARTON"),
+    db: Session = Depends(get_db)
+):
+    repository = ApiRepository(db)
+
+    station = repository.get_station_by_id(station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station with id {station_id} not found")
+
+    measurement = repository.get_latest_measurement_by_station_id(station_id)
+    if not measurement:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No measurements found for station {station_id}"
+        )
+
+    offset, datum_used, conversion_available = _get_datum_context(db, station_id, datum)
+    response = LatestMeasurementResponse.model_validate(measurement)
+    response.datum_used = datum_used
+    response.conversion_available = conversion_available
+    if offset is not None:
+        response.value = datum_convert(measurement.value, offset)
+    return response
 
 
 @app.get("/alerts", response_model=PagedResultResponse[StationResponse])
