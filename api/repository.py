@@ -24,8 +24,6 @@ class ApiRepository:
             else:
                 stmt = stmt.order_by(asc(col_attr))
         else:
-            # Sin criterio explícito, ordenar por id para garantizar orden
-            # estable independientemente de actualizaciones (MVCC de Postgres)
             stmt = stmt.order_by(asc(model.id))
 
         return stmt.offset(paging.skip).limit(paging.limit)
@@ -113,6 +111,45 @@ class ApiRepository:
             .limit(1)
         )
         return self.db_session.execute(stmt).scalars().first()
+
+    def get_latest_two_measurements_bulk(self) -> dict:
+        rn = func.row_number().over(
+            partition_by=Measurement.station_id,
+            order_by=desc(Measurement.date_time),
+        ).label("rn")
+
+        subq = (
+            select(Measurement, rn)
+            .join(Station, Measurement.station_id == Station.id)
+            .where(Station.is_visible.is_(True))
+            .subquery()
+        )
+
+        stmt = (
+            select(
+                subq.c.id,
+                subq.c.station_id,
+                subq.c.date_time,
+                subq.c.value,
+                subq.c.rn,
+            )
+            .where(subq.c.rn <= 2)
+            .order_by(subq.c.station_id, subq.c.rn)
+        )
+
+        rows = self.db_session.execute(stmt).all()
+
+        result: dict = {}
+        for row in rows:
+            sid = row.station_id
+            if sid not in result:
+                result[sid] = {"newest": None, "older": None}
+            if row.rn == 1:
+                result[sid]["newest"] = row
+            elif row.rn == 2:
+                result[sid]["older"] = row
+
+        return result
 
     def get_datum_types(self):
         stmt = select(ReferenceZeroType)

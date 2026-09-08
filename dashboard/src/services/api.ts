@@ -29,6 +29,16 @@ export interface PagedMeasurementResponse {
   items: Measurement[];
 }
 
+export interface StationTrendMeasurements {
+  station_id: number;
+  latest: Measurement | null;
+  previous: Measurement | null;
+}
+
+export interface BulkLatestMeasurementsResponse {
+  items: StationTrendMeasurements[];
+}
+
 export interface PagedStationsResponse {
   total_count: number;
   items: Station[];
@@ -108,6 +118,10 @@ export const apiClient = {
 
     const result = await apiFetch<PagedMeasurementResponse>(url);
     return { ...result, items: [...result.items].reverse() };
+  },
+
+  async getLatestMeasurementsBulk(): Promise<BulkLatestMeasurementsResponse> {
+    return apiFetch<BulkLatestMeasurementsResponse>('/measurements/latest/bulk');
   },
 
   async getGaugePoint(stationId: number): Promise<GaugePoint> {

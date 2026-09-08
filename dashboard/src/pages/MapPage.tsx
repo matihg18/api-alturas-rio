@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
-import type { Station, LatestMeasurement } from '../services/api';
+
 import { StationMap } from '../components/StationMap';
 import type { StationWithLatest } from '../components/StationMap';
 import { SourcesFooter } from '../components/SourcesFooter';
@@ -25,36 +25,38 @@ export function MapPage() {
     if (!silent) setStatus('loading');
     else setIsRefreshing(true);
     try {
-      const list: Station[] = await apiClient.getStations();
-      const withLatest: StationWithLatest[] = await Promise.all(
-        list.map(async (s) => {
-          try {
-            const latest: LatestMeasurement = await apiClient.getLatestMeasurement(s.id);
+      const [list, bulk] = await Promise.all([
+        apiClient.getStations(),
+        apiClient.getLatestMeasurementsBulk(),
+      ]);
 
-            // Fetch the 2 most recent measurements to compute trend
-            let trend: StationWithLatest['trend'] = 'stable';
-            try {
-              const history = await apiClient.getMeasurements(s.id, 2, 0);
-              // getMeasurements returns items in ascending order (reversed internally)
-              // items[0] = older, items[1] = newest
-              const items = history.items;
-              if (items.length >= 2) {
-                const prev = items[0].value;
-                const curr = items[1].value;
-                if (curr > prev) trend = 'up';
-                else if (curr < prev) trend = 'down';
-                else trend = 'stable';
-              }
-            } catch {
-              trend = 'stable';
-            }
-
-            return { ...s, latest, trend };
-          } catch {
-            return { ...s, latest: null, trend: 'none' as const };
-          }
-        }),
+      const bulkMap = new Map(
+        bulk.items.map((entry) => [entry.station_id, entry])
       );
+
+      const withLatest: StationWithLatest[] = list.map((s) => {
+        const entry = bulkMap.get(s.id);
+
+        if (!entry || !entry.latest) {
+          return { ...s, latest: null, trend: 'none' as const };
+        }
+
+        let trend: StationWithLatest['trend'] = 'stable';
+        if (entry.previous) {
+          if (entry.latest.value > entry.previous.value) trend = 'up';
+          else if (entry.latest.value < entry.previous.value) trend = 'down';
+          else trend = 'stable';
+        }
+
+        const latest = {
+          ...entry.latest,
+          datum_used: 'LOCAL' as const,
+          conversion_available: false,
+        };
+
+        return { ...s, latest, trend };
+      });
+
       setStations(withLatest);
       setStatus('ok');
     } catch {

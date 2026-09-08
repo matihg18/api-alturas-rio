@@ -10,6 +10,8 @@ from api.schemas import (
     PagedResultResponse,
     ReferenceZeroTypeResponse,
     GaugePointResponse,
+    BulkLatestMeasurementsResponse,
+    StationTrendMeasurements,
 )
 from api.repository import ApiRepository
 from api.rate_limiter import limiter, rate_limit_exceeded_handler, RATE_LIMIT_DEFAULT
@@ -102,6 +104,43 @@ def get_measurements_by_station_id(
         conversion_available=conversion_available,
         items=items,
     )
+
+
+@app.get("/measurements/latest/bulk", response_model=BulkLatestMeasurementsResponse)
+@limiter.limit(RATE_LIMIT_DEFAULT)
+def get_latest_measurements_bulk(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    repository = ApiRepository(db)
+    bulk = repository.get_latest_two_measurements_bulk()
+
+    items = []
+    for station_id, data in bulk.items():
+        newest_row = data["newest"]
+        older_row = data["older"]
+
+        latest = MeasurementResponse(
+            id=newest_row.id,
+            station_id=newest_row.station_id,
+            date_time=newest_row.date_time,
+            value=newest_row.value,
+        ) if newest_row else None
+
+        previous = MeasurementResponse(
+            id=older_row.id,
+            station_id=older_row.station_id,
+            date_time=older_row.date_time,
+            value=older_row.value,
+        ) if older_row else None
+
+        items.append(StationTrendMeasurements(
+            station_id=station_id,
+            latest=latest,
+            previous=previous,
+        ))
+
+    return BulkLatestMeasurementsResponse(items=items)
 
 
 @app.get("/measurements/latest/{station_id}", response_model=LatestMeasurementResponse)
