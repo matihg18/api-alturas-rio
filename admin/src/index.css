@@ -288,10 +288,17 @@ html, body, #root {
   font-weight: 600;
 }
 
+/* Select de filtro por fuente */
+.source-filter-select {
+  width: 220px !important;
+  flex-shrink: 0;
+}
+
 @media (max-width: 600px) {
   .page-header__filters { width: 100%; }
   .page-header__filters .form-input,
-  .river-combobox { width: 100%; }
+  .source-filter-select,
+  .river-combobox { width: 100% !important; }
 }
 
 .page-title {
@@ -397,6 +404,23 @@ thead th {
   white-space: nowrap;
 }
 
+/* Columnas ordenables */
+.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.th-sortable:hover {
+  color: var(--text-secondary);
+}
+
+.th-sortable__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
 tbody tr {
   border-bottom: 1px solid var(--border);
   transition: background 0.1s;
@@ -480,7 +504,7 @@ tbody td.td-mono {
 }
 .badge-accent  { background: var(--accent-muted); color: var(--accent-hover); border: 1px solid var(--accent-border); }
 .badge-success { background: var(--success-muted); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
-.badge-muted   { background: rgba(255,255,255,0.04); color: var(--text-muted); border: 1px solid var(--border); }
+.badge-muted   { background: rgba(255,255,255,0.10); color: var(--text-secondary); border: 1px solid rgba(255,255,255,0.18); }
 .badge-warning { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
 .badge-code    { font-family: var(--font-mono); font-size: 0.7rem; background: rgba(99,102,241,0.1); color: var(--accent-hover); border: 1px solid var(--accent-border); }
 
@@ -727,7 +751,7 @@ tbody td.td-mono {
   cursor: not-allowed;
 }
 
-/* ── Fila de estación oculta ─────────────────────────────────────────────── */
+/* ── Fila de estación oculta ───────────────────────────────────────────────── */
 .station-row--hidden td {
   opacity: 0.5;
 }
@@ -735,4 +759,11 @@ tbody td.td-mono {
 .station-row--hidden .td-primary {
   text-decoration: line-through;
   text-decoration-color: var(--text-muted);
+}
+
+/* Badges en filas ocultas: tono intermedio — más apagado que el normal, pero aún legible */
+.station-row--hidden .badge-muted {
+  background: rgba(255,255,255,0.06);
+  color: rgba(148,163,184,0.65);
+  border-color: rgba(255,255,255,0.1);
 }

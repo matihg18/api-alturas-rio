@@ -1,10 +1,14 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Layers, Link2, Link2Off, MapPin, Pencil, X } from 'lucide-react';
+import { Layers, Link2, Link2Off, MapPin, Pencil, X, ChevronsUpDown } from 'lucide-react';
 import { api } from '../services/adminApi';
 import type { Station, GaugePoint, StationCoordinatesUpdate } from '../services/adminApi';
 
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
+
+type SortKey = 'name' | 'river';
+type SortDir = 'asc' | 'desc';
+
 
 export function StationsPage() {
   const { show } = useToast();
@@ -24,11 +28,16 @@ export function StationsPage() {
   const [savingCoords, setSavingCoords] = useState(false);
 
   const [stationSearch, setStationSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('todas');
   const [riverFilter, setRiverFilter] = useState('');
   const [riverInput, setRiverInput] = useState('');
   const [riverDropdownOpen, setRiverDropdownOpen] = useState(false);
   const riverComboboxRef = useRef<HTMLDivElement>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+
+  // Ordenamiento
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   const load = async () => {
     setLoading(true);
@@ -154,6 +163,21 @@ export function StationsPage() {
     return [...prefix, ...internal];
   }, [uniqueRivers, riverInput]);
 
+  // Fuentes únicas derivadas dinámicamente de los datos cargados
+  const uniqueSources = useMemo(() => {
+    const set = new Set(stations.map((s) => s.source.toLowerCase()));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [stations]);
+
+  // Conteos por fuente (sobre todas las estaciones, sin filtros)
+  const sourceCounts = useMemo(() => {
+    const counts: Record<string, number> = { todas: stations.length };
+    for (const src of uniqueSources) {
+      counts[src] = stations.filter((s) => s.source.toLowerCase() === src).length;
+    }
+    return counts;
+  }, [stations, uniqueSources]);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (riverComboboxRef.current && !riverComboboxRef.current.contains(e.target as Node)) {
@@ -176,35 +200,87 @@ export function StationsPage() {
     setRiverDropdownOpen(false);
   };
 
-  const filtered = stations.filter((s) => {
-    const matchName = s.name.toLowerCase().includes(stationSearch.toLowerCase()) ||
-      s.source.toLowerCase().includes(stationSearch.toLowerCase());
-    const matchRiver = riverInput.trim() === '' ||
-      s.river.toLowerCase().includes(riverInput.toLowerCase());
-    return matchName && matchRiver;
-  });
+  // ── Ordenamiento ──────────────────────────────────────────────────────────
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  // ── Filtrado + ordenamiento ───────────────────────────────────────────────
+
+  const filtered = useMemo(() => {
+    let result = stations.filter((s) => {
+      const matchName = s.name.toLowerCase().includes(stationSearch.toLowerCase());
+      const matchSource =
+        sourceFilter === 'todas' || s.source.toLowerCase() === sourceFilter;
+      const matchRiver =
+        riverInput.trim() === '' ||
+        s.river.toLowerCase().includes(riverInput.toLowerCase());
+      return matchName && matchSource && matchRiver;
+    });
+
+    result = [...result].sort((a, b) => {
+      const valA = sortKey === 'name' ? a.name : a.river;
+      const valB = sortKey === 'name' ? b.name : b.river;
+      const cmp = valA.localeCompare(valB, 'es', { sensitivity: 'base' });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+
+    return result;
+  }, [stations, stationSearch, sourceFilter, riverInput, sortKey, sortDir]);
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  const SortIcon = ({ col }: { col: SortKey }) => (
+    <ChevronsUpDown
+      size={12}
+      style={{
+        opacity: sortKey === col ? 1 : 0.35,
+        transform: sortKey === col && sortDir === 'desc' ? 'scaleY(-1)' : 'none',
+        transition: 'transform 0.2s, opacity 0.2s',
+        flexShrink: 0,
+      }}
+    />
+  );
 
   return (
     <>
       <div className="page-header">
         <div className="page-header__left">
           <h1 className="page-title">Estaciones</h1>
-          <p className="page-subtitle">
-            Listado de estaciones hidrológicas. Podés asignar el punto de aforo, editar coordenadas y controlar la visibilidad en el dashboard.
-          </p>
+          <p className="page-subtitle">Listado de estaciones hidrológicas.</p>
         </div>
         <div className="page-header__filters">
-          {/* Filtro por nombre / fuente */}
+          {/* Filtro por fuente */}
+          <select
+            id="source-filter"
+            className="form-select source-filter-select"
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+          >
+            <option value="todas">Todas ({sourceCounts['todas'] ?? 0})</option>
+            {uniqueSources.map((src) => (
+              <option key={src} value={src}>
+                {src.charAt(0).toUpperCase() + src.slice(1)} ({sourceCounts[src] ?? 0})
+              </option>
+            ))}
+          </select>
+
+          {/* Filtro por nombre */}
           <input
             id="station-search"
             type="text"
             className="form-input"
-            placeholder="Buscar por nombre o fuente…"
+            placeholder="Filtrar por nombre..."
             value={stationSearch}
             onChange={(e) => setStationSearch(e.target.value)}
           />
+
           {/* Filtro por río — combobox */}
           <div className="river-combobox" ref={riverComboboxRef}>
             <input
@@ -253,8 +329,24 @@ export function StationsPage() {
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Nombre</th>
-                  <th>Río</th>
+                  <th
+                    className="th-sortable"
+                    onClick={() => handleSort('name')}
+                    title="Ordenar por nombre"
+                  >
+                    <span className="th-sortable__label">
+                      Nombre <SortIcon col="name" />
+                    </span>
+                  </th>
+                  <th
+                    className="th-sortable"
+                    onClick={() => handleSort('river')}
+                    title="Ordenar por río"
+                  >
+                    <span className="th-sortable__label">
+                      Río <SortIcon col="river" />
+                    </span>
+                  </th>
                   <th>Fuente</th>
                   <th>Punto de aforo</th>
                   <th>Coordenadas</th>
