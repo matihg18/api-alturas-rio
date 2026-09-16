@@ -9,18 +9,17 @@ export function MeasurementsImportPage() {
   const [stations, setStations] = useState<Station[]>([]);
   const [loadingStations, setLoadingStations] = useState(true);
 
-  // Combobox de estación
   const [stationInput, setStationInput] = useState<string>('');
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const comboboxRef = useRef<HTMLDivElement>(null);
 
-  // Archivo
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Estado de la importación
+  const [override, setOverride] = useState(false);
+
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<MeasurementImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -32,7 +31,6 @@ export function MeasurementsImportPage() {
       .finally(() => setLoadingStations(false));
   }, []);
 
-  // Cerrar dropdown al hacer click fuera
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
@@ -86,24 +84,27 @@ export function MeasurementsImportPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = e.target.files?.[0];
     if (picked) acceptFile(picked);
-    // Resetear el input para que el mismo archivo pueda volver a elegirse
     e.target.value = '';
   };
 
   const handleImport = async () => {
     if (!selectedStation) { show('Seleccioná una estación', 'error'); return; }
-    if (!file)            { show('Seleccioná un archivo CSV', 'error'); return; }
+    if (!file) { show('Seleccioná un archivo CSV', 'error'); return; }
 
     setImporting(true);
     setResult(null);
     setImportError(null);
     try {
-      const res = await api.measurements.importCsv(selectedStation.id, file);
+      const res = await api.measurements.importCsv(selectedStation.id, file, override);
       setResult(res);
-      if (res.inserted > 0) {
+      if (res.updated > 0 && res.inserted > 0) {
+        show(`${res.inserted} insertada(s), ${res.updated} actualizada(s)`);
+      } else if (res.updated > 0) {
+        show(`${res.updated} medición(es) actualizada(s)`);
+      } else if (res.inserted > 0) {
         show(`Importación exitosa: ${res.inserted} medición(es) insertada(s)`);
       } else {
-        show('Importación completada — no se insertaron mediciones nuevas', 'error');
+        show('Importación completada — no se procesaron mediciones nuevas', 'error');
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error al importar el CSV';
@@ -129,7 +130,6 @@ export function MeasurementsImportPage() {
         <div className="card" style={{ maxWidth: '580px', padding: '2rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
-            {/* Banner de formato */}
             <div style={{
               display: 'flex',
               alignItems: 'flex-start',
@@ -159,7 +159,6 @@ export function MeasurementsImportPage() {
               </div>
             </div>
 
-            {/* Combobox de estación */}
             <div className="form-group">
               <label className="form-label" htmlFor="import-station">Estación destino</label>
               {loadingStations ? (
@@ -227,7 +226,6 @@ export function MeasurementsImportPage() {
               )}
             </div>
 
-            {/* Zona de drag & drop */}
             <div className="form-group">
               <label className="form-label">Archivo CSV</label>
               <div
@@ -248,8 +246,8 @@ export function MeasurementsImportPage() {
                   background: dragging
                     ? 'var(--accent-muted)'
                     : file
-                    ? 'var(--success-muted)'
-                    : 'transparent',
+                      ? 'var(--success-muted)'
+                      : 'transparent',
                   userSelect: 'none',
                 }}
               >
@@ -286,7 +284,37 @@ export function MeasurementsImportPage() {
               </div>
             </div>
 
-            {/* Botón */}
+            <label
+              htmlFor="import-override"
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.625rem',
+                cursor: 'pointer',
+                padding: '0.875rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                border: `1px solid ${override ? 'var(--danger-border)' : 'var(--border)'}`,
+                background: override ? 'var(--danger-muted)' : 'transparent',
+                transition: 'border-color 0.2s, background 0.2s',
+              }}
+            >
+              <input
+                id="import-override"
+                type="checkbox"
+                checked={override}
+                onChange={(e) => setOverride(e.target.checked)}
+                style={{ marginTop: '0.15rem', accentColor: 'var(--danger)', cursor: 'pointer' }}
+              />
+              <div>
+                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: override ? 'var(--danger)' : 'var(--text-primary)' }}>
+                  Sobreescribir mediciones existentes
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem', lineHeight: 1.5 }}>
+                  Si está activo, las mediciones del CSV actualizarán los valores ya guardados en la base de datos. Usá esta opción solo para corregir datos erróneos.
+                </div>
+              </div>
+            </label>
+
             <button
               id="import-submit-btn"
               className="btn btn-primary"
@@ -300,7 +328,6 @@ export function MeasurementsImportPage() {
               }
             </button>
 
-            {/* Resultado exitoso */}
             {result && (
               <div style={{
                 borderRadius: 'var(--radius-md)',
@@ -322,11 +349,18 @@ export function MeasurementsImportPage() {
                   Importación completada
                 </div>
                 <div style={{ display: 'flex', padding: '1.25rem', gap: '1.5rem' }}>
-                  {[
-                    { label: 'Total en CSV', value: result.total,    color: 'var(--text-primary)' },
-                    { label: 'Insertadas',   value: result.inserted, color: 'var(--text-primary)' },
-                    { label: 'Omitidas',     value: result.skipped,  color: 'var(--text-primary)' },
-                  ].map(({ label, value, color }) => (
+                  {(result.updated > 0
+                    ? [
+                      { label: 'Total en CSV', value: result.total, color: 'var(--text-primary)' },
+                      { label: 'Insertadas', value: result.inserted, color: 'var(--text-primary)' },
+                      { label: 'Actualizadas', value: result.updated, color: 'var(--text-primary)' },
+                    ]
+                    : [
+                      { label: 'Total en CSV', value: result.total, color: 'var(--text-primary)' },
+                      { label: 'Insertadas', value: result.inserted, color: 'var(--text-primary)' },
+                      { label: 'Omitidas', value: result.skipped, color: 'var(--text-primary)' },
+                    ]
+                  ).map(({ label, value, color }) => (
                     <div key={label} style={{ textAlign: 'center', flex: 1 }}>
                       <div style={{ fontSize: '1.6rem', fontWeight: 700, color, lineHeight: 1.1 }}>
                         {value}
@@ -354,7 +388,6 @@ export function MeasurementsImportPage() {
               </div>
             )}
 
-            {/* Error de validación */}
             {importError && (
               <div style={{
                 borderRadius: 'var(--radius-md)',

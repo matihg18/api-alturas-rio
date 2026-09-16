@@ -121,10 +121,10 @@ export const api = {
       return { blob, filename };
     },
 
-    importCsv: async (stationId: number, file: File): Promise<MeasurementImportResult> => {
+    importCsv: async (stationId: number, file: File, override = false): Promise<MeasurementImportResult> => {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`${BASE}/measurements/import?station_id=${stationId}`, {
+      const res = await fetch(`${BASE}/measurements/import?station_id=${stationId}&override=${override}`, {
         method: 'POST',
         body: formData,
       });
@@ -153,4 +153,5 @@ export interface MeasurementImportResult {
   total: number;
   inserted: number;
   skipped: number;
+  updated: number;
 }

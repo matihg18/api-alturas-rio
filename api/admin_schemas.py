@@ -103,3 +103,4 @@ class MeasurementImportResult(BaseModel):
     total: int
     inserted: int
     skipped: int
+    updated: int = 0
