@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, asc
 from common.models import Station, GaugePoint, GaugeDatum, ReferenceZeroType, Measurement
+from api.import_strategies import get_strategy
 from api.admin_schemas import (
     GaugePointCreate,
     GaugePointUpdate,
@@ -318,6 +319,7 @@ ISO_FORMAT = "%Y-%m-%dT%H:%M:%S"
 @router.post("/measurements/import", response_model=MeasurementImportResult)
 async def admin_import_measurements_csv(
     station_id: int = Query(..., description="ID de la estación destino"),
+    override: bool = Query(False, description="Si es True, sobreescribe mediciones existentes"),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
@@ -401,24 +403,12 @@ async def admin_import_measurements_csv(
 
     total = len(parsed)
 
-    existing_stmt = select(Measurement.date_time).where(
-        Measurement.station_id == station_id
+    strategy = get_strategy(override)
+    inserted, skipped, updated = strategy.apply(parsed, station_id, db)
+
+    return MeasurementImportResult(
+        total=total,
+        inserted=inserted,
+        skipped=skipped,
+        updated=updated,
     )
-    existing_datetimes: set[datetime] = set(
-        db.execute(existing_stmt).scalars().all()
-    )
-
-    new_measurements = [
-        Measurement(station_id=station_id, date_time=dt, value=val)
-        for dt, val in parsed
-        if dt not in existing_datetimes
-    ]
-
-    inserted = len(new_measurements)
-    skipped = total - inserted
-
-    if new_measurements:
-        db.add_all(new_measurements)
-        db.commit()
-
-    return MeasurementImportResult(total=total, inserted=inserted, skipped=skipped)

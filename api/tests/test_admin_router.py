@@ -487,3 +487,99 @@ def test_import_csv_only_header_no_rows(client, seed_data):
     assert data["total"] == 0
     assert data["inserted"] == 0
     assert data["skipped"] == 0
+
+
+def test_import_csv_override_updates_existing_value(client, seed_data, db_session):
+    from sqlalchemy import select
+    from common.models import Measurement
+    from datetime import datetime
+
+    csv_content = "date_time,value\n2026-02-21T00:00:00,9.99\n"
+    r = client.post(
+        "/admin/measurements/import?station_id=1&override=true",
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["inserted"] == 0
+    assert data["updated"] == 1
+    assert data["skipped"] == 0
+
+    m = db_session.execute(
+        select(Measurement).where(
+            Measurement.station_id == 1,
+            Measurement.date_time == datetime(2026, 2, 21, 0, 0, 0),
+        )
+    ).scalars().first()
+    if m is not None:
+        assert m.value == 9.99
+
+
+def test_import_csv_override_inserts_new_measurements(client, seed_data):
+    csv_content = "date_time,value\n2026-01-15T00:00:00,5.55\n2026-01-15T06:00:00,5.60\n"
+    r = client.post(
+        "/admin/measurements/import?station_id=1&override=true",
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 2
+    assert data["inserted"] == 2
+    assert data["updated"] == 0
+    assert data["skipped"] == 0
+
+
+def test_import_csv_override_mixed_new_and_existing(client, seed_data):
+    csv_content = (
+        "date_time,value\n"
+        "2026-02-21T00:00:00,8.88\n"
+        "2026-02-22T00:00:00,7.77\n"
+        "2026-01-20T00:00:00,4.00\n"
+    )
+    r = client.post(
+        "/admin/measurements/import?station_id=1&override=true",
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 3
+    assert data["inserted"] == 1
+    assert data["updated"] == 2
+    assert data["skipped"] == 0
+
+
+def test_import_csv_without_override_still_skips(client, seed_data):
+    """Sin override (default), el comportamiento original de skip se mantiene."""
+    csv_content = "date_time,value\n2026-02-21T00:00:00,9.99\n2026-01-10T00:00:00,3.33\n"
+    r = client.post(
+        "/admin/measurements/import?station_id=1",  # override=False por defecto
+        files=_csv_file(csv_content),
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 2
+    assert data["inserted"] == 1
+    assert data["skipped"] == 1
+    assert data["updated"] == 0
+
+
+def test_import_csv_override_does_not_affect_other_stations(client, seed_data, db_session):
+    from sqlalchemy import select
+    from common.models import Measurement
+
+    before_s2 = db_session.execute(
+        select(Measurement).where(Measurement.station_id == 2)
+    ).scalars().all()
+
+    csv_content = "date_time,value\n2026-02-21T00:00:00,99.0\n"
+    client.post(
+        "/admin/measurements/import?station_id=1&override=true",
+        files=_csv_file(csv_content),
+    )
+
+    after_s2 = db_session.execute(
+        select(Measurement).where(Measurement.station_id == 2)
+    ).scalars().all()
+
+    assert len(before_s2) == len(after_s2)
