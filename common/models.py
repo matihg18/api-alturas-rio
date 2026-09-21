@@ -85,21 +85,42 @@ class Measurement(Base):
 
 
 class ScraperError(Base):
-    """Registra cada fallo ocurrido durante el scraping de una fuente/estación."""
     __tablename__ = "scraper_errors"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # Fuente que falló: "Prefectura", "INA", "CARU"
     source: Mapped[str] = mapped_column(String(50), index=True)
-    # Nombre de la estación que falló (None si falló la request de descubrimiento)
     station_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    # Tipo de error: "HTTP_ERROR", "PARSE_ERROR", "TIMEOUT", "UNKNOWN"
     error_type: Mapped[str] = mapped_column(String(50))
-    # Código HTTP si aplica (404, 500, etc.)
     http_status_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    # URL que falló
     url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    # Mensaje completo de la excepción
     error_message: Mapped[str] = mapped_column(Text)
-    # Timestamp del fallo (con índice para filtrar por rango de fechas)
     occurred_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+
+
+class DischargeCurveParams(Base):
+    __tablename__ = "discharge_curve_params"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    station_id: Mapped[int] = mapped_column(
+        ForeignKey("stations.id"), unique=True, index=True
+    )
+    a: Mapped[float] = mapped_column(Float, comment="Coeficiente multiplicador")
+    b: Mapped[float] = mapped_column(Float, comment="Exponente potencial")
+    h0: Mapped[float] = mapped_column(Float, comment="Nivel de caudal nulo [m]")
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    station: Mapped["Station"] = relationship()
+
+
+class FlowMeasurement(Base):
+    __tablename__ = "flow_measurements"
+    __table_args__ = (UniqueConstraint("station_id", "date_time"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    station_id: Mapped[int] = mapped_column(ForeignKey("stations.id"), index=True)
+    date_time: Mapped[datetime] = mapped_column(DateTime, index=True)
+    flow: Mapped[float] = mapped_column(Float, comment="Caudal estimado [m³/s]")
+    station: Mapped["Station"] = relationship()

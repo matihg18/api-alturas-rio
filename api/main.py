@@ -12,6 +12,9 @@ from api.schemas import (
     GaugePointResponse,
     BulkLatestMeasurementsResponse,
     StationTrendMeasurements,
+    FlowMeasurementResponse,
+    PagedFlowMeasurementResponse,
+    DischargeCurveParamsResponse,
 )
 from api.repository import ApiRepository
 from api.rate_limiter import limiter, rate_limit_exceeded_handler, RATE_LIMIT_DEFAULT
@@ -215,7 +218,7 @@ def get_gauge_point_for_station(
     repository = ApiRepository(db)
     station = repository.get_station_by_id(station_id)
     if not station:
-        raise HTTPException(status_code=404, detail=f"Station with id {station_id} not found")
+        raise HTTPException(status_code=404, detail=f"Station with id:{station_id} not found")
 
     gauge_point = repository.get_gauge_point_for_station(station_id)
     if not gauge_point:
@@ -225,3 +228,66 @@ def get_gauge_point_for_station(
         )
 
     return gauge_point
+
+
+@app.get("/flow/{station_id}", response_model=PagedFlowMeasurementResponse)
+@limiter.limit(RATE_LIMIT_DEFAULT)
+def get_flow_by_station_id(
+    request: Request,
+    station_id: int,
+    paging: PagingParams = Depends(),
+    date_filters: DateFilters = Depends(),
+    db: Session = Depends(get_db),
+):
+    repository = ApiRepository(db)
+    station = repository.get_station_by_id(station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station with id {station_id} not found")
+
+    result = repository.get_flow_by_station_id(station_id, paging, date_filters)
+    return PagedFlowMeasurementResponse(
+        total_count=result.total_count,
+        items=[FlowMeasurementResponse.model_validate(item) for item in result.items],
+    )
+
+
+@app.get("/flow/latest/{station_id}", response_model=FlowMeasurementResponse)
+@limiter.limit(RATE_LIMIT_DEFAULT)
+def get_latest_flow_by_station_id(
+    request: Request,
+    station_id: int,
+    db: Session = Depends(get_db),
+):
+    repository = ApiRepository(db)
+    station = repository.get_station_by_id(station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station with id {station_id} not found")
+
+    flow = repository.get_latest_flow_by_station_id(station_id)
+    if not flow:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No flow measurements found for station {station_id}"
+        )
+    return FlowMeasurementResponse.model_validate(flow)
+
+
+@app.get("/flow/curve/{station_id}", response_model=DischargeCurveParamsResponse)
+@limiter.limit(RATE_LIMIT_DEFAULT)
+def get_discharge_curve_params(
+    request: Request,
+    station_id: int,
+    db: Session = Depends(get_db),
+):
+    repository = ApiRepository(db)
+    station = repository.get_station_by_id(station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station with id {station_id} not found")
+
+    curve = repository.get_discharge_curve_params(station_id)
+    if not curve:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Station {station_id} has no discharge curve configured"
+        )
+    return DischargeCurveParamsResponse.model_validate(curve)

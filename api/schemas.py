@@ -106,3 +106,25 @@ class GaugePointResponse(BaseModel):
     description: Optional[str] = None
     datums: List[GaugeDatumResponse] = []
     model_config = ConfigDict(from_attributes=True)
+
+
+class FlowMeasurementResponse(BaseModel):
+    id: int
+    station_id: int
+    date_time: datetime
+    flow: float
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PagedFlowMeasurementResponse(BaseModel):
+    total_count: int
+    items: List[FlowMeasurementResponse]
+
+
+class DischargeCurveParamsResponse(BaseModel):
+    station_id: int
+    a: float
+    b: float
+    h0: float
+    notes: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)

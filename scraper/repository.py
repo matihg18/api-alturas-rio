@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 from common.models import Station, Measurement, ScraperError
+from common.flow_service import FlowService
 from scraper.schemas import RawStationData, RawMeasurementData
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,11 @@ class ScraperRepository:
     def save_measurements(self, measurements: list[RawMeasurementData]):
         saved = 0
         skipped = 0
+        flow_saved = 0
+
+        # Una sola instancia por batch: cachea los parámetros de curva
+        # en memoria para no consultar la DB una vez por medición.
+        flow_service = FlowService(self.db)
 
         for raw_m in measurements:
             try:
@@ -95,6 +101,11 @@ class ScraperRepository:
                     self.db.add(new_measurement)
                     saved += 1
 
+                    # Calcular y persistir caudal si la estación tiene curva.
+                    # El commit al final de este método cubre ambas tablas.
+                    if flow_service.compute_and_save(station.id, raw_m.date_time, raw_m.value):
+                        flow_saved += 1
+
             except Exception as e:
                 logger.error(f"ERROR SAVING MEASUREMENT FOR {raw_m.station_name}: {e}")
                 self.db.rollback()
@@ -102,7 +113,8 @@ class ScraperRepository:
 
         self.db.commit()
         logger.info(
-            f"MEASUREMENTS COMPLETED. {saved} SAVED, {skipped} SKIPPED (UNKNOWN STATIONS)."
+            f"MEASUREMENTS COMPLETED. {saved} SAVED, {skipped} SKIPPED (UNKNOWN STATIONS). "
+            f"{flow_saved} FLOW MEASUREMENTS SAVED."
         )
 
     def log_error(
