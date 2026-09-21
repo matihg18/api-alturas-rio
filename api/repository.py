@@ -1,6 +1,6 @@
 from sqlalchemy import select, desc, asc, func
 from sqlalchemy.orm import Session
-from common.models import Measurement, Station, ReferenceZeroType, GaugePoint
+from common.models import Measurement, Station, ReferenceZeroType, GaugePoint, FlowMeasurement, DischargeCurveParams
 from api.schemas import PagedResultResponse, PagingParams, DateFilters
 
 
@@ -160,3 +160,40 @@ class ApiRepository:
         if not station or station.gauge_point_id is None:
             return None
         return self.db_session.get(GaugePoint, station.gauge_point_id)
+
+    def get_flow_by_station_id(
+        self,
+        station_id: int,
+        paging: PagingParams,
+        date_filters: DateFilters,
+    ):
+        base_stmt = select(FlowMeasurement).where(FlowMeasurement.station_id == station_id)
+        if date_filters.from_date:
+            base_stmt = base_stmt.where(
+                func.date(FlowMeasurement.date_time) >= date_filters.from_date
+            )
+        if date_filters.to_date:
+            base_stmt = base_stmt.where(
+                func.date(FlowMeasurement.date_time) <= date_filters.to_date
+            )
+        total_count = self.db_session.execute(
+            select(func.count()).select_from(base_stmt.subquery())
+        ).scalar()
+        items_stmt = self._apply_paging_and_sorting(base_stmt, FlowMeasurement, paging)
+        items = self.db_session.execute(items_stmt).scalars().all()
+        return PagedResultResponse(total_count=total_count, items=items)
+
+    def get_latest_flow_by_station_id(self, station_id: int):
+        stmt = (
+            select(FlowMeasurement)
+            .where(FlowMeasurement.station_id == station_id)
+            .order_by(desc(FlowMeasurement.date_time))
+            .limit(1)
+        )
+        return self.db_session.execute(stmt).scalars().first()
+
+    def get_discharge_curve_params(self, station_id: int):
+        stmt = select(DischargeCurveParams).where(
+            DischargeCurveParams.station_id == station_id
+        )
+        return self.db_session.execute(stmt).scalars().first()
