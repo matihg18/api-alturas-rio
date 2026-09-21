@@ -66,7 +66,6 @@ def main():
                     f"({station_saved} guardados, {station_skipped} omitidos hasta ahora)"
                 )
 
-
             total_saved += station_saved
             total_skipped += station_skipped
             logger.info(

@@ -1,13 +1,12 @@
 import pytest
 from common.flow_calculator import compute_flow
 
-EL_SOBERBIO    = dict(a=643.10, b=1.331, h0=-0.005)
-SAN_JAVIER     = dict(a=500.39, b=1.639, h0=-0.005)
-GARRUCHOS      = dict(a=70.07,  b=1.978, h0=-3.228)
-SANTO_TOME     = dict(a=39.11,  b=2.246, h0=-2.469)
-ALVEAR         = dict(a=0.212,  b=3.964, h0=-6.786)
+EL_SOBERBIO = dict(a=643.10, b=1.331, h0=-0.005)
+SAN_JAVIER = dict(a=500.39, b=1.639, h0=-0.005)
+GARRUCHOS = dict(a=70.07, b=1.978, h0=-3.228)
+SANTO_TOME = dict(a=39.11, b=2.246, h0=-2.469)
+ALVEAR = dict(a=0.212, b=3.964, h0=-6.786)
 PASO_LOS_LIBRES = dict(a=218.51, b=1.840, h0=-1.307)
-
 
 
 class TestComputeFlowInvalidRange:
@@ -29,6 +28,7 @@ class TestComputeFlowInvalidRange:
             assert compute_flow(h=params["h0"], **params) is None, (
                 f"Esperaba None para H=H₀={params['h0']}"
             )
+
 
 class TestComputeFlowValidResults:
 
@@ -68,7 +68,7 @@ class TestComputeFlowValidResults:
 
     def test_higher_h_gives_higher_flow(self):
         p = EL_SOBERBIO
-        q_low  = compute_flow(h=3.0, **p)
+        q_low = compute_flow(h=3.0, **p)
         q_high = compute_flow(h=8.0, **p)
         assert q_low is not None
         assert q_high is not None
