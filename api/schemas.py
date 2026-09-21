@@ -128,4 +128,3 @@ class DischargeCurveParamsResponse(BaseModel):
     h0: float
     notes: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
-
