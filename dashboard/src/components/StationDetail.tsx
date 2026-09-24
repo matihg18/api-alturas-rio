@@ -1,35 +1,45 @@
 import React from 'react';
-import { Station, Measurement, LatestMeasurement, GaugePoint, apiClient } from '../services/api';
+import { Station, Measurement, LatestMeasurement, GaugePoint, FlowMeasurement, apiClient } from '../services/api';
 import { MapPin, Clock, Loader2, GitCompare, X as XIcon } from 'lucide-react';
 import { CompareStationPicker } from './CompareStationPicker';
 
 interface StationDetailProps {
   station: Station;
-  /** Última medición en cero local (del polling de App.tsx) */
   latest: LatestMeasurement | null;
-  /** Historial en cero local (del polling de App.tsx) */
   history: Measurement[];
-  /** Lista global de estaciones para el picker de comparación */
   allStations: Station[];
+  initialSeries?: string | null;
 }
 
-// ── Tipos de comparación ──────────────────────────────────────────────────────
 interface CompareEntry {
   station: Station;
   history: Measurement[];
   isLoading: boolean;
-  /** Índice fijo en COMPARE_COLORS asignado al agregar. No cambia al eliminar otras. */
   colorIndex: number;
 }
 
-const MAX_COMPARE = 4; // máximo de estaciones adicionales (total = 5 con la principal)
-
-// Paleta de colores para las series comparadas
+const MAX_COMPARE = 4;
 const COMPARE_COLORS = ['#f97316', '#a855f7', '#22c55e', '#ec4899'];
 
-// ─────────────────────────────────────────────────────────────────────────────
+const SERIES_META: Record<string, { label: string; unit: string; color: string }> = {
+  level: { label: 'Nivel hidrométrico', unit: 'm', color: 'var(--accent-blue)' },
+  flow: { label: 'Caudal', unit: 'm³/s', color: '#14b8a6' },
+};
 
-export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, history, allStations }) => {
+export const StationDetail: React.FC<StationDetailProps> = ({
+  station,
+  latest,
+  history,
+  allStations,
+  initialSeries,
+}) => {
+  const [activeVariable, setActiveVariable] = React.useState<string>(() => {
+    if (initialSeries && (station.available_series ?? []).includes(initialSeries)) {
+      return initialSeries;
+    }
+    return station.available_series?.[0] ?? 'level';
+  });
+
   const [gaugePoint, setGaugePoint] = React.useState<GaugePoint | null>(null);
   const [selectedDatum, setSelectedDatum] = React.useState<string | null>(null);
   const [isDatumLoading, setIsDatumLoading] = React.useState(false);
@@ -53,7 +63,9 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
   const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 20;
 
-  // ── Comparación (múltiple) ────────────────────────────────────────────────
+  const [flowHistory, setFlowHistory] = React.useState<FlowMeasurement[]>([]);
+  const [latestFlow, setLatestFlow] = React.useState<FlowMeasurement | null>(null);
+  const [isFlowLoading, setIsFlowLoading] = React.useState(false);
   const [showPicker, setShowPicker] = React.useState(false);
   const [compareEntries, setCompareEntries] = React.useState<CompareEntry[]>([]);
 
@@ -86,15 +98,12 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     }
   }, []);
 
-  // Agrega una nueva estación al array de comparación
   const handleSelectCompare = React.useCallback(async (s: Station) => {
     setShowPicker(false);
 
-    // Elegir el primer índice de color que no esté en uso
     const usedIndices = new Set(compareEntries.map((e) => e.colorIndex));
     const colorIndex = COMPARE_COLORS.findIndex((_, i) => !usedIndices.has(i));
 
-    // Marcar como cargando con el colorIndex ya asignado
     setCompareEntries((prev) => [...prev, { station: s, history: [], isLoading: true, colorIndex }]);
 
     const today = new Date();
@@ -111,11 +120,9 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     );
   }, [fromDate, toDate, fetchCompareData, compareEntries]);
 
-  // Quita una estación comparada por su ID
   const handleRemoveCompare = React.useCallback((stationId: number) => {
     setCompareEntries((prev) => prev.filter((e) => e.station.id !== stationId));
   }, []);
-  // ─────────────────────────────────────────────────────────────────────────────
 
   const fetchRecent = React.useCallback(async (datumCode: string | null) => {
     const today = new Date();
@@ -198,8 +205,13 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     setToDate(dates.to);
     setIsFiltered(false);
     setDisplayLatest(latest);
-    setDisplayDatumUsed('LOCAL');
-    // Limpiar comparaciones al cambiar de estación
+    if (initialSeries && (station.available_series ?? []).includes(initialSeries)) {
+      setActiveVariable(initialSeries);
+    } else {
+      setActiveVariable(station.available_series?.[0] ?? 'level');
+    }
+    setFlowHistory([]);
+    setLatestFlow(null);
     setCompareEntries([]);
     setShowPicker(false);
 
@@ -208,11 +220,74 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
         .then(setGaugePoint)
         .catch(() => setGaugePoint(null));
     }
-  }, [station.id]);
+  }, [station.id, initialSeries]);
 
   React.useEffect(() => {
     fetchRecent(null);
   }, [station.id]);
+
+  const fetchFlowRecent = React.useCallback(async () => {
+    const today = new Date();
+    const monthAgo = new Date(today);
+    monthAgo.setDate(today.getDate() - 30);
+    const fromIso = monthAgo.toISOString().slice(0, 10);
+    setIsFlowLoading(true);
+    try {
+      const [result, latest] = await Promise.all([
+        apiClient.getFlowMeasurements(station.id, 100, 0, fromIso, undefined),
+        apiClient.getLatestFlow(station.id).catch(() => null),
+      ]);
+      setFlowHistory(result.items);
+      setLatestFlow(latest);
+    } catch (err) {
+      console.error('Error al obtener caudal:', err);
+    } finally {
+      setIsFlowLoading(false);
+    }
+  }, [station.id]);
+
+  const fetchFlowAll = React.useCallback(async (from: string, to: string) => {
+    const chunkSize = 100;
+    setIsFlowLoading(true);
+    try {
+      const first = await apiClient.getFlowMeasurements(station.id, chunkSize, 0, from || undefined, to || undefined);
+      const total = first.total_count;
+      let allItems = [...first.items];
+      if (total > chunkSize) {
+        const pages = Math.ceil(total / chunkSize);
+        const rest = await Promise.all(
+          Array.from({ length: pages - 1 }, (_, i) =>
+            apiClient.getFlowMeasurements(station.id, chunkSize, (i + 1) * chunkSize, from || undefined, to || undefined)
+          )
+        );
+        for (const page of rest) allItems = allItems.concat(page.items);
+        allItems.sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+      }
+      setFlowHistory(allItems);
+    } catch (err) {
+      console.error('Error al obtener caudal:', err);
+    } finally {
+      setIsFlowLoading(false);
+    }
+  }, [station.id]);
+
+  React.useEffect(() => {
+    if (activeVariable === 'flow') {
+      if (isFiltered) {
+        fetchFlowAll(fromDate, toDate);
+      } else {
+        fetchFlowRecent();
+      }
+    }
+  }, [activeVariable, station.id]);
+
+  const handleVariableChange = (variable: string) => {
+    if (variable === activeVariable) return;
+    setActiveVariable(variable);
+    setCurrentPage(1);
+    setCompareEntries([]);
+    setShowPicker(false);
+  };
 
   React.useEffect(() => {
     if (selectedDatum === null && !isFiltered) {
@@ -261,18 +336,21 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     if (!fromDate && !toDate) return;
     setIsFiltered(true);
     setCurrentPage(1);
-    await fetchAll(selectedDatum, fromDate, toDate);
-
-    // Actualizar todas las comparaciones con el mismo rango
-    if (compareEntries.length > 0) {
-      setCompareEntries((prev) => prev.map((e) => ({ ...e, isLoading: true })));
-      const updated = await Promise.all(
-        compareEntries.map(async (entry) => {
-          const items = await fetchCompareData(entry.station.id, fromDate, toDate);
-          return { ...entry, history: items, isLoading: false };
-        })
-      );
-      setCompareEntries(updated);
+    if (activeVariable === 'flow') {
+      await fetchFlowAll(fromDate, toDate);
+    } else {
+      await fetchAll(selectedDatum, fromDate, toDate);
+      // Actualizar comparaciones con el mismo rango
+      if (compareEntries.length > 0) {
+        setCompareEntries((prev) => prev.map((e) => ({ ...e, isLoading: true })));
+        const updated = await Promise.all(
+          compareEntries.map(async (entry) => {
+            const items = await fetchCompareData(entry.station.id, fromDate, toDate);
+            return { ...entry, history: items, isLoading: false };
+          })
+        );
+        setCompareEntries(updated);
+      }
     }
   };
 
@@ -282,18 +360,20 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     setToDate(dates.to);
     setIsFiltered(false);
     setCurrentPage(1);
-    await fetchRecent(selectedDatum);
-
-    // Volver a los últimos 30 días para todas las comparaciones
-    if (compareEntries.length > 0) {
-      setCompareEntries((prev) => prev.map((e) => ({ ...e, isLoading: true })));
-      const updated = await Promise.all(
-        compareEntries.map(async (entry) => {
-          const items = await fetchCompareData(entry.station.id, dates.from, '');
-          return { ...entry, history: items, isLoading: false };
-        })
-      );
-      setCompareEntries(updated);
+    if (activeVariable === 'flow') {
+      await fetchFlowRecent();
+    } else {
+      await fetchRecent(selectedDatum);
+      if (compareEntries.length > 0) {
+        setCompareEntries((prev) => prev.map((e) => ({ ...e, isLoading: true })));
+        const updated = await Promise.all(
+          compareEntries.map(async (entry) => {
+            const items = await fetchCompareData(entry.station.id, dates.from, '');
+            return { ...entry, history: items, isLoading: false };
+          })
+        );
+        setCompareEntries(updated);
+      }
     }
   };
 
@@ -310,27 +390,43 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
   };
 
-  // ── Chart geometry ────────────────────────────────────────────────────────────
   const chartWidth = 1000;
   const chartHeight = 280;
   const chartPadding = { top: 20, right: 20, bottom: 35, left: 40 };
+  const activeMeta = SERIES_META[activeVariable] ?? SERIES_META.level;
+  const COLOR_PRIMARY = activeMeta.color;
+  const activeUnit = activeMeta.unit;
 
-  const hasChart = displayHistory.length > 0;
+  const activeHistory: { date_time: string; value: number }[] = activeVariable === 'flow'
+    ? flowHistory.map((f) => ({ date_time: f.date_time, value: f.flow }))
+    : displayHistory;
 
-  // Calcular rango de tiempo global (todas las series)
+  const activeLatestValue: number | null = activeVariable === 'flow'
+    ? (latestFlow?.flow ?? null)
+    : (displayLatest?.value ?? null);
+
+  const activeLatestDate: string | null = activeVariable === 'flow'
+    ? (latestFlow?.date_time ?? null)
+    : (displayLatest?.date_time ?? null);
+
+  const hasChart = activeHistory.length > 0;
+
   const allTimestamps = [
-    ...displayHistory.map((m) => new Date(m.date_time).getTime()),
-    ...compareEntries.flatMap((e) => e.history.map((m) => new Date(m.date_time).getTime())),
+    ...activeHistory.map((m) => new Date(m.date_time).getTime()),
+    ...(activeVariable === 'level'
+      ? compareEntries.flatMap((e) => e.history.map((m) => new Date(m.date_time).getTime()))
+      : []),
   ];
   const tMin = allTimestamps.length > 0 ? Math.min(...allTimestamps) : 0;
   const tMax = allTimestamps.length > 0 ? Math.max(...allTimestamps) : 1;
   const tRange = tMax - tMin || 1;
 
-  // Rango Y unificado entre todas las series
-  const primaryValues = displayHistory.map((m) => m.value);
-  const compareValues = compareEntries.flatMap((e) => e.history.map((m) => m.value));
+  const primaryValues = activeHistory.map((m) => m.value);
+  const compareValues = activeVariable === 'level'
+    ? compareEntries.flatMap((e) => e.history.map((m) => m.value))
+    : [];
 
-  const allValues = compareEntries.length > 0 ? [...primaryValues, ...compareValues] : primaryValues;
+  const allValues = compareValues.length > 0 ? [...primaryValues, ...compareValues] : primaryValues;
   const minVal = allValues.length > 0 ? Math.min(...allValues) : 0;
   const maxVal = allValues.length > 0 ? Math.max(...allValues) : 12;
   const yRange = maxVal - minVal || 1;
@@ -345,15 +441,13 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     return chartHeight - chartPadding.bottom - ((val - minVal) / yRange) * h;
   };
 
-  // Primary series points (time-based X)
-  const primaryPoints = displayHistory.map((m) => ({
+  const primaryPoints = activeHistory.map((m) => ({
     x: getChartX(new Date(m.date_time).getTime()),
     y: getChartY(m.value),
     value: m.value,
     ts: m.date_time,
   }));
 
-  // Compare series points — un array de puntos por cada entrada
   const comparePointsArr = compareEntries.map((entry) =>
     entry.history.map((m) => ({
       x: getChartX(new Date(m.date_time).getTime()),
@@ -377,13 +471,10 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
 
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => parseFloat((minVal + f * yRange).toFixed(1)));
 
-  // X-axis ticks derived from unified time range
   const xTickCount = 7;
   const xTickTimes = Array.from({ length: xTickCount }, (_, i) =>
     tMin + (i / (xTickCount - 1)) * tRange
   );
-
-  // Hover
   const svgRef = React.useRef<SVGSVGElement>(null);
   const [hoverX, setHoverX] = React.useState<number | null>(null);
 
@@ -394,32 +485,29 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     setHoverX(rawX);
   };
 
-  // Cursor X → timestamp real
   const hoverTimestamp = React.useMemo(() => {
     if (hoverX === null) return null;
     const drawWidth = chartWidth - chartPadding.left - chartPadding.right;
     return tMin + ((hoverX - chartPadding.left) / drawWidth) * tRange;
   }, [hoverX, tMin, tRange]);
 
-  // Punto más cercano de la serie principal
   const closestPrimary = React.useMemo(() => {
     if (hoverTimestamp === null || primaryPoints.length === 0) return null;
     return primaryPoints.reduce((best, p) =>
       Math.abs(new Date(p.ts).getTime() - hoverTimestamp) <
-      Math.abs(new Date(best.ts).getTime() - hoverTimestamp)
+        Math.abs(new Date(best.ts).getTime() - hoverTimestamp)
         ? p
         : best
     );
   }, [hoverTimestamp, primaryPoints]);
 
-  // Punto más cercano de cada serie comparada
   const closestCompareArr = React.useMemo(() => {
     if (hoverTimestamp === null) return [];
     return comparePointsArr.map((pts) => {
       if (pts.length === 0) return null;
       return pts.reduce((best, p) =>
         Math.abs(new Date(p.ts).getTime() - hoverTimestamp) <
-        Math.abs(new Date(best.ts).getTime() - hoverTimestamp)
+          Math.abs(new Date(best.ts).getTime() - hoverTimestamp)
           ? p
           : best
       );
@@ -430,10 +518,9 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     hoverX >= chartPadding.left &&
     hoverX <= chartWidth - chartPadding.right;
 
-  // ── Tabla ─────────────────────────────────────────────────────────────────────
   const sortedHistory = React.useMemo(
-    () => [...displayHistory].sort((a, b) => new Date(b.date_time).getTime() - new Date(a.date_time).getTime()),
-    [displayHistory]
+    () => [...activeHistory].sort((a, b) => new Date(b.date_time).getTime() - new Date(a.date_time).getTime()),
+    [activeHistory]
   );
   const totalPages = Math.ceil(sortedHistory.length / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -443,13 +530,10 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     ? 'Cero Local'
     : (gaugePoint?.datums.find(d => d.datum_type.code === selectedDatum)?.datum_type.name ?? selectedDatum);
 
-  // Colores
-  const COLOR_PRIMARY = 'var(--accent-blue)';
+  const availableSeries = station.available_series ?? ['level'];
 
-  // IDs a excluir del picker: estación principal + todas las ya comparadas
   const excludedIds = [station.id, ...compareEntries.map((e) => e.station.id)];
 
-  // Hay alguna comparación cargando
   const isAnyCompareLoading = compareEntries.some((e) => e.isLoading);
 
   return (
@@ -466,75 +550,108 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
             <Clock size={12} />
-            <span>Última lectura: {displayLatest ? formatDate(displayLatest.date_time) : '—'}</span>
+            <span>Última lectura: {activeLatestDate ? formatDate(activeLatestDate) : '—'}</span>
           </div>
         </div>
+
+        {availableSeries.length > 1 && (
+          <div className="variable-tabs">
+            {availableSeries.map((v) => {
+              const meta = SERIES_META[v];
+              if (!meta) return null;
+              return (
+                <button
+                  key={v}
+                  className={`variable-tab${activeVariable === v ? ' variable-tab--active' : ''}`}
+                  style={activeVariable === v ? { '--tab-color': meta.color } as React.CSSProperties : {}}
+                  onClick={() => handleVariableChange(v)}
+                >
+                  {meta.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
 
         <div className="card-panel" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '250px', padding: '2rem' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Nivel de Agua Observado
+            {activeMeta.label}
           </span>
 
           <div style={{ margin: '0.8rem 0', display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
-            {displayLatest !== null ? (
+            {(activeVariable === 'flow' && isFlowLoading) ? (
+              <Loader2 size={24} className="spin" style={{ color: COLOR_PRIMARY }} />
+            ) : activeLatestValue !== null ? (
               <>
                 <span className="mono" style={{ fontSize: '3rem', fontWeight: '700', color: 'var(--text-primary)', lineHeight: '1' }}>
-                  {displayLatest.value.toFixed(2)}
+                  {activeVariable === 'flow'
+                    ? activeLatestValue.toFixed(0)
+                    : activeLatestValue.toFixed(2)}
                 </span>
-                <span style={{ fontSize: '1.2rem', color: 'var(--accent-blue)', fontWeight: '600', marginBottom: '4px' }}>m</span>
+                <span style={{ fontSize: '1.2rem', color: COLOR_PRIMARY, fontWeight: '600', marginBottom: '4px' }}>
+                  {activeUnit}
+                </span>
               </>
             ) : (
               <span style={{ fontSize: '1.5rem', color: 'var(--text-muted)' }}>Sin datos</span>
             )}
           </div>
 
-          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.2rem', marginTop: '0.5rem' }}>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.6rem' }}>
-              <span>Cero de Referencia</span>
-              {isDatumLoading && <Loader2 size={12} className="spin" style={{ color: 'var(--accent-blue)' }} />}
-            </span>
+          {activeVariable === 'level' && (
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.2rem', marginTop: '0.5rem' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.6rem' }}>
+                <span>Cero de Referencia</span>
+                {isDatumLoading && <Loader2 size={12} className="spin" style={{ color: 'var(--accent-blue)' }} />}
+              </span>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', background: '#090D16', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '2px', width: 'fit-content' }}>
-              {renderDatumButton(
-                'LOCAL',
-                'Cero Local',
-                selectedDatum === null,
-                false,
-                () => handleDatumChange(null),
-              )}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', background: '#090D16', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '2px', width: 'fit-content' }}>
+                {renderDatumButton(
+                  'LOCAL',
+                  'Cero Local',
+                  selectedDatum === null,
+                  false,
+                  () => handleDatumChange(null),
+                )}
 
-              {gaugePoint !== null
-                ? gaugePoint.datums.map((gd) =>
-                  renderDatumButton(
-                    gd.datum_type.code,
-                    gd.datum_type.name,
-                    selectedDatum === gd.datum_type.code,
-                    false,
-                    () => handleDatumChange(gd.datum_type.code),
+                {gaugePoint !== null
+                  ? gaugePoint.datums.map((gd) =>
+                    renderDatumButton(
+                      gd.datum_type.code,
+                      gd.datum_type.name,
+                      selectedDatum === gd.datum_type.code,
+                      false,
+                      () => handleDatumChange(gd.datum_type.code),
+                    )
                   )
-                )
-                : station.gauge_point_id === null
-                  ? null
-                  : (
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', padding: '0.45rem 0.6rem' }}>
-                      Cargando datums…
-                    </span>
-                  )
-              }
+                  : station.gauge_point_id === null
+                    ? null
+                    : (
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', padding: '0.45rem 0.6rem' }}>
+                        Cargando datums…
+                      </span>
+                    )
+                }
+              </div>
+
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.5rem' }}>
+                {selectedDatum === null
+                  ? 'Referencia al cero local de la escala física de la estación.'
+                  : `Mostrando valores referenciados al datum: ${displayDatumUsed}.`}
+                {station.gauge_point_id === null && (
+                  <> Esta estación no tiene datos de conversión altimétrica.</>
+                )}
+              </span>
             </div>
+          )}
 
-            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.5rem' }}>
-              {selectedDatum === null
-                ? 'Referencia al cero local de la escala física de la estación.'
-                : `Mostrando valores referenciados al datum: ${displayDatumUsed}.`}
-              {station.gauge_point_id === null && (
-                <> Esta estación no tiene datos de conversión altimétrica.</>
-              )}
-            </span>
-          </div>
+          {activeVariable === 'flow' && (
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Caudal estimado mediante ajuste de curvas de descarga nivel-caudal.
+            </div>
+          )}
         </div>
 
         <div className="card-panel" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '250px' }}>
@@ -558,14 +675,12 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
       </div>
 
       <div className="card-panel">
-        {/* Header de la sección con botón de comparación */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.2rem', flexWrap: 'wrap', gap: '0.8rem' }}>
           <h3 style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em', marginTop: '0.1rem' }}>
-            Evolución del Nivel
+            Evolución — {activeMeta.label}
           </h3>
 
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', position: 'relative' }}>
-            {/* Badges de estaciones comparadas */}
             {compareEntries.map((entry) => (
               <div className="compare-badge" key={entry.station.id}>
                 <span
@@ -584,8 +699,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
               </div>
             ))}
 
-            {/* Botón comparar — visible mientras no se alcance el límite */}
-            {compareEntries.length < MAX_COMPARE && (
+            {activeVariable === 'level' && compareEntries.length < MAX_COMPARE && (
               <div style={{ position: 'relative' }}>
                 <button
                   className={`btn btn-compare${showPicker ? ' btn-compare--active' : ''}`}
@@ -609,7 +723,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
           </div>
         </div>
 
-        {/* Leyenda de series (visible cuando hay al menos una comparación) */}
         {compareEntries.length > 0 && (
           <div className="compare-legend">
             <div className="compare-legend__item">
@@ -627,7 +740,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
           </div>
         )}
 
-        {/* Filtro de fechas */}
         <div style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -758,7 +870,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 })}
               </defs>
 
-              {/* Grid Y */}
               {yTicks.map((tickVal, tickIdx) => {
                 const y = getChartY(tickVal);
                 return (
@@ -771,7 +882,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 );
               })}
 
-              {/* Grid X ticks (tiempo real) */}
               {xTickTimes.map((t, i) => {
                 const x = getChartX(t);
                 const anchor = i === 0 ? 'start' : i === xTickCount - 1 ? 'end' : 'middle';
@@ -785,7 +895,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 );
               })}
 
-              {/* Áreas y líneas — series comparadas (debajo de la principal) */}
               {compareEntries.map((entry, idx) => {
                 const pts = comparePointsArr[idx];
                 if (pts.length === 0) return null;
@@ -802,13 +911,10 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 );
               })}
 
-              {/* Área y línea — serie principal */}
               {primaryAreaPath && <path d={primaryAreaPath} fill="url(#area-grad-primary)" />}
               {primaryLinePath && (
                 <path d={primaryLinePath} fill="none" stroke={COLOR_PRIMARY} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               )}
-
-              {/* Puntos fijos al final de cada serie (solo cuando NO hay hover) */}
               {!isHoverActive && primaryPoints.length > 0 && (
                 <circle
                   cx={primaryPoints[primaryPoints.length - 1].x}
@@ -830,10 +936,8 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 );
               })}
 
-              {/* Línea de cursor vertical + etiqueta de tiempo + círculos de hover */}
               {isHoverActive && hoverX !== null && (
                 <g>
-                  {/* Línea vertical en el X del cursor */}
                   <line
                     x1={hoverX}
                     y1={chartPadding.top}
@@ -843,7 +947,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                     strokeWidth="1"
                     strokeDasharray="3 3"
                   />
-                  {/* Etiqueta de fecha en el cursor (en el eje X) */}
                   {hoverTimestamp !== null && (() => {
                     const label = formatXLabel(new Date(hoverTimestamp).toISOString());
                     const lx = Math.min(
@@ -869,11 +972,9 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                       </>
                     );
                   })()}
-                  {/* Círculo de hover — serie principal */}
                   {closestPrimary && (
                     <circle cx={closestPrimary.x} cy={closestPrimary.y} r="5" fill="var(--text-primary)" stroke={COLOR_PRIMARY} strokeWidth="1.5" />
                   )}
-                  {/* Círculos de hover — series comparadas */}
                   {closestCompareArr.map((pt, idx) => {
                     if (!pt) return null;
                     const color = COMPARE_COLORS[compareEntries[idx]?.colorIndex ?? idx];
@@ -884,7 +985,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                 </g>
               )}
 
-              {/* Tooltip */}
               {isHoverActive && hoverX !== null && (() => {
                 const activeSeries: Array<{ value: number; ts: string; color: string; name: string }> = [];
                 if (closestPrimary) activeSeries.push({ value: closestPrimary.value, ts: closestPrimary.ts, color: COLOR_PRIMARY, name: station.name });
@@ -955,7 +1055,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                   <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
                     <th style={{ textAlign: 'left', padding: '0.6rem 0.4rem', fontWeight: '600' }}>Fecha y Hora</th>
                     <th style={{ textAlign: 'right', padding: '0.6rem 0.4rem', fontWeight: '600' }}>
-                      Altura (m)
+                      {activeMeta.label} ({activeUnit})
                     </th>
                   </tr>
                 </thead>
@@ -967,10 +1067,10 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
                       </td>
                     </tr>
                   ) : paginatedHistory.map((m) => (
-                    <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                    <tr key={m.date_time} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
                       <td style={{ padding: '0.6rem 0.4rem', color: 'var(--text-secondary)' }}>{formatDate(m.date_time)}</td>
                       <td className="mono" style={{ textAlign: 'right', padding: '0.6rem 0.4rem', fontWeight: '600', color: 'var(--text-primary)' }}>
-                        {m.value.toFixed(2)}
+                        {activeVariable === 'flow' ? m.value.toFixed(0) : m.value.toFixed(2)}
                       </td>
                     </tr>
                   ))}
@@ -997,8 +1097,6 @@ export const StationDetail: React.FC<StationDetailProps> = ({ station, latest, h
     </div>
   );
 };
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function renderDatumButton(
   code: string,
