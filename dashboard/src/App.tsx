@@ -19,7 +19,9 @@ type AppStatus = 'loading' | 'error' | 'ok';
 
 function App() {
   const location = useLocation();
-  const requestedId = (location.state as { stationId?: number } | null)?.stationId ?? null;
+  const locState = location.state as { stationId?: number; series?: string | null } | null;
+  const requestedId = locState?.stationId ?? null;
+  const requestedSeries = locState?.series ?? null;
 
   const [stations, setStations] = useState<StationWithLatest[]>([]);
   const [selectedStationId, setSelectedStationId] = useState<number | null>(requestedId);
@@ -29,6 +31,7 @@ function App() {
   const [riverInput, setRiverInput] = useState('');
   const [riverDropdownOpen, setRiverDropdownOpen] = useState(false);
   const riverComboboxRef = useRef<HTMLDivElement>(null);
+  const [seriesFilter, setSeriesFilter] = useState<string | null>(null); // null = todas
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [status, setStatus] = useState<AppStatus>('loading');
@@ -155,9 +158,17 @@ function App() {
     const matchName = s.name.toLowerCase().includes(stationSearch.toLowerCase());
     const matchRiver = riverInput.trim() === '' ||
       s.river.toLowerCase().includes(riverInput.toLowerCase());
-    return matchName && matchRiver;
+    const matchSeries = seriesFilter === null || (s.available_series ?? []).includes(seriesFilter);
+    return matchName && matchRiver && matchSeries;
   });
 
+  const availableSeriesGlobal = useMemo(() => {
+    const set = new Set<string>();
+    stations.forEach((s) => (s.available_series ?? []).forEach((sr) => set.add(sr)));
+    return Array.from(set);
+  }, [stations]);
+
+  const SERIES_LABELS: Record<string, string> = { level: 'Nivel', flow: 'Caudal' };
 
   const selectedStation = stations.find((s) => s.id === selectedStationId) ?? null;
 
@@ -203,7 +214,6 @@ function App() {
             </div>
           </div>
           <div className="sidebar-search">
-            {/* Filtro por nombre de estación */}
             <div className="sidebar-search__inner">
               <input
                 type="text"
@@ -219,7 +229,6 @@ function App() {
               )}
             </div>
 
-            {/* Filtro por río — combobox con dropdown */}
             <div className="sidebar-search__inner" ref={riverComboboxRef} style={{ position: 'relative' }}>
               <input
                 type="text"
@@ -257,6 +266,29 @@ function App() {
               )}
             </div>
           </div>
+
+          {availableSeriesGlobal.length > 1 && (
+            <div className="sidebar-series-filter">
+              <span className="sidebar-series-filter__label">Serie</span>
+              <div className="sidebar-series-filter__pills">
+                <button
+                  className={`series-pill${seriesFilter === null ? ' series-pill--active' : ''}`}
+                  onClick={() => setSeriesFilter(null)}
+                >
+                  Todas
+                </button>
+                {availableSeriesGlobal.map((s) => (
+                  <button
+                    key={s}
+                    className={`series-pill${seriesFilter === s ? ' series-pill--active' : ''}`}
+                    onClick={() => setSeriesFilter(seriesFilter === s ? null : s)}
+                  >
+                    {SERIES_LABELS[s] ?? s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="station-list" ref={listRef}>
             {status === 'loading' ? (
@@ -315,7 +347,13 @@ function App() {
               <button className="btn" onClick={() => fetchStations()}>Reintentar enlace</button>
             </div>
           ) : selectedStation ? (
-            <StationDetail station={selectedStation} latest={selectedStation.latest} history={history} allStations={stations} />
+            <StationDetail
+              station={selectedStation}
+              latest={selectedStation.latest}
+              history={history}
+              allStations={stations}
+              initialSeries={requestedSeries}
+            />
           ) : (
             <div className="card-panel empty-panel">
               Seleccione una estación de la lista para ver los datos de telemetría.

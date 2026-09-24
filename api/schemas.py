@@ -48,6 +48,7 @@ class StationResponse(StationBase):
     id: int
     is_visible: bool = True
     gauge_point_id: Optional[int] = None
+    available_series: List[str] = []
     model_config = ConfigDict(from_attributes=True)
 
 

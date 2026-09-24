@@ -59,7 +59,16 @@ def get_stations(
     db: Session = Depends(get_db)
 ):
     repository = ApiRepository(db)
-    return repository.get_station_list(paging)
+    result = repository.get_station_list(paging)
+    flow_ids = repository.get_station_ids_with_flow_curve()
+    enriched = [
+        StationResponse(
+            **{k: v for k, v in vars(s).items() if not k.startswith('_')},
+            available_series=_build_available_series(s.id, flow_ids),
+        )
+        for s in result.items
+    ]
+    return PagedResultResponse(total_count=result.total_count, items=enriched)
 
 
 @app.get("/stations/{station_id}", response_model=StationResponse)
@@ -73,7 +82,18 @@ def get_station_by_id(
     station = repository.get_station_by_id(station_id)
     if not station:
         raise HTTPException(status_code=404, detail=f"Station with id:{station_id} not found")
-    return station
+    flow_ids = repository.get_station_ids_with_flow_curve()
+    return StationResponse(
+        **{k: v for k, v in vars(station).items() if not k.startswith('_')},
+        available_series=_build_available_series(station.id, flow_ids),
+    )
+
+
+def _build_available_series(station_id: int, flow_curve_ids: set[int]) -> list[str]:
+    series = ['level']
+    if station_id in flow_curve_ids:
+        series.append('flow')
+    return series
 
 
 @app.get("/measurements/{station_id}", response_model=PagedMeasurementResponse)

@@ -8,6 +8,8 @@ export interface Station {
   alert_value: number | null;
   evacuation_value: number | null;
   gauge_point_id: number | null;
+  /** Series de datos disponibles: 'level', 'flow', etc. */
+  available_series: string[];
 }
 
 export interface Measurement {
@@ -63,6 +65,26 @@ export interface GaugePoint {
   river: string | null;
   description: string | null;
   datums: GaugeDatum[];
+}
+
+export interface FlowMeasurement {
+  id: number;
+  station_id: number;
+  date_time: string;
+  flow: number; // m³/s
+}
+
+export interface PagedFlowMeasurementResponse {
+  total_count: number;
+  items: FlowMeasurement[];
+}
+
+export interface DischargeCurveParams {
+  station_id: number;
+  a: number;
+  b: number;
+  h0: number;
+  notes: string | null;
 }
 
 
@@ -126,5 +148,27 @@ export const apiClient = {
 
   async getGaugePoint(stationId: number): Promise<GaugePoint> {
     return apiFetch<GaugePoint>(`/datums/station/${stationId}`);
+  },
+
+  async getFlowMeasurements(
+    stationId: number,
+    limit = 100,
+    skip = 0,
+    fromDate?: string,
+    toDate?: string,
+  ): Promise<PagedFlowMeasurementResponse> {
+    let url = `/flow/${stationId}?limit=${limit}&skip=${skip}&sorting=date_time-desc`;
+    if (fromDate) url += `&from_date=${encodeURIComponent(fromDate)}`;
+    if (toDate) url += `&to_date=${encodeURIComponent(toDate)}`;
+    const result = await apiFetch<PagedFlowMeasurementResponse>(url);
+    return { ...result, items: [...result.items].reverse() };
+  },
+
+  async getLatestFlow(stationId: number): Promise<FlowMeasurement> {
+    return apiFetch<FlowMeasurement>(`/flow/latest/${stationId}`);
+  },
+
+  async getDischargeCurveParams(stationId: number): Promise<DischargeCurveParams> {
+    return apiFetch<DischargeCurveParams>(`/flow/curve/${stationId}`);
   },
 };

@@ -41,6 +41,12 @@ class ApiRepository:
         stmt = select(Station).where(Station.id == station_id)
         return self.db_session.execute(stmt).scalars().first()
 
+    def get_station_ids_with_flow_curve(self) -> set[int]:
+        rows = self.db_session.execute(
+            select(DischargeCurveParams.station_id)
+        ).scalars().all()
+        return set(rows)
+
     def get_stations_with_active_alert(self, paging: PagingParams):
         latest_measurements = (
             select(Measurement)
