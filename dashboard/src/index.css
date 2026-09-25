@@ -957,10 +957,6 @@ h6 {
   color: var(--text-primary);
 }
 
-.map-popup__value--flow {
-  color: #10b981;
-}
-
 .map-popup__metric {
   margin-top: 0.2rem;
 }

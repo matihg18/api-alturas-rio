@@ -148,7 +148,7 @@ function StationPopup({ station, latest, activeSeries }: StationPopupProps) {
             {loadingFlow ? (
               <div className="map-popup__no-value">Cargando caudal…</div>
             ) : latestFlow != null ? (
-              <div className="map-popup__value mono map-popup__value--flow">
+              <div className="map-popup__value mono">
                 {latestFlow.toLocaleString('es-AR', { maximumFractionDigits: 1 })} m³/s
               </div>
             ) : (
