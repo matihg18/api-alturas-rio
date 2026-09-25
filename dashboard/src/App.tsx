@@ -31,7 +31,8 @@ function App() {
   const [riverInput, setRiverInput] = useState('');
   const [riverDropdownOpen, setRiverDropdownOpen] = useState(false);
   const riverComboboxRef = useRef<HTMLDivElement>(null);
-  const [seriesFilter, setSeriesFilter] = useState<string | null>(null); // null = todas
+  const [seriesFilter, setSeriesFilter] = useState<string | null>(requestedSeries); // requestedSeries o null
+  const [latestFlowMap, setLatestFlowMap] = useState<Map<number, number>>(new Map());
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [status, setStatus] = useState<AppStatus>('loading');
@@ -73,6 +74,24 @@ function App() {
       });
 
       setStations(withLatest);
+
+      const flowStations = stationList.filter((s) => (s.available_series ?? []).includes('flow'));
+      if (flowStations.length > 0) {
+        const flowResults = await Promise.allSettled(
+          flowStations.map(async (s) => {
+            const res = await apiClient.getLatestFlow(s.id);
+            return { stationId: s.id, flow: res.flow };
+          })
+        );
+        const flowMap = new Map<number, number>();
+        flowResults.forEach((r) => {
+          if (r.status === 'fulfilled' && r.value) {
+            flowMap.set(r.value.stationId, r.value.flow);
+          }
+        });
+        setLatestFlowMap(flowMap);
+      }
+
       setErrorMsg('');
       setStatus('ok');
       setSelectedStationId((prev) => {
@@ -318,7 +337,15 @@ function App() {
                         </div>
                       </div>
                       <div>
-                        {station.latest?.value != null ? (
+                        {seriesFilter === 'flow' ? (
+                          latestFlowMap.get(station.id) != null ? (
+                            <span className="mono station-item__value">
+                              {Math.round(latestFlowMap.get(station.id)!)} m³/s
+                            </span>
+                          ) : (
+                            <span className="station-item__no-value">—</span>
+                          )
+                        ) : station.latest?.value != null ? (
                           <span className="mono station-item__value">
                             {station.latest.value.toFixed(2)}m
                           </span>

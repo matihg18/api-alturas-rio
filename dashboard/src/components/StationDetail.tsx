@@ -13,7 +13,7 @@ interface StationDetailProps {
 
 interface CompareEntry {
   station: Station;
-  history: Measurement[];
+  history: { date_time: string; value: number }[];
   isLoading: boolean;
   colorIndex: number;
 }
@@ -69,29 +69,58 @@ export const StationDetail: React.FC<StationDetailProps> = ({
   const [showPicker, setShowPicker] = React.useState(false);
   const [compareEntries, setCompareEntries] = React.useState<CompareEntry[]>([]);
 
+  const selectableStations = React.useMemo(() => {
+    if (activeVariable === 'flow') {
+      return allStations.filter((s) => (s.available_series ?? []).includes('flow'));
+    }
+    return allStations;
+  }, [allStations, activeVariable]);
+
   const fetchCompareData = React.useCallback(async (
     stationId: number,
     from: string,
     to: string,
-  ): Promise<Measurement[]> => {
+    variable: string,
+  ): Promise<{ date_time: string; value: number }[]> => {
     const chunkSize = 100;
     try {
-      const first = await apiClient.getMeasurements(stationId, chunkSize, 0, undefined, from || undefined, to || undefined);
-      const total = first.total_count;
-      let allItems = [...first.items];
+      if (variable === 'flow') {
+        const first = await apiClient.getFlowMeasurements(stationId, chunkSize, 0, from || undefined, to || undefined);
+        const total = first.total_count;
+        let allItems = first.items.map((f) => ({ date_time: f.date_time, value: f.flow }));
 
-      if (total > chunkSize) {
-        const pages = Math.ceil(total / chunkSize);
-        const rest = await Promise.all(
-          Array.from({ length: pages - 1 }, (_, i) =>
-            apiClient.getMeasurements(stationId, chunkSize, (i + 1) * chunkSize, undefined, from || undefined, to || undefined)
-          )
-        );
-        for (const page of rest) allItems = allItems.concat(page.items);
-        allItems.sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+        if (total > chunkSize) {
+          const pages = Math.ceil(total / chunkSize);
+          const rest = await Promise.all(
+            Array.from({ length: pages - 1 }, (_, i) =>
+              apiClient.getFlowMeasurements(stationId, chunkSize, (i + 1) * chunkSize, from || undefined, to || undefined)
+            )
+          );
+          for (const page of rest) {
+            allItems = allItems.concat(page.items.map((f) => ({ date_time: f.date_time, value: f.flow })));
+          }
+          allItems.sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+        }
+        return allItems;
+      } else {
+        const first = await apiClient.getMeasurements(stationId, chunkSize, 0, undefined, from || undefined, to || undefined);
+        const total = first.total_count;
+        let allItems = first.items.map((m) => ({ date_time: m.date_time, value: m.value }));
+
+        if (total > chunkSize) {
+          const pages = Math.ceil(total / chunkSize);
+          const rest = await Promise.all(
+            Array.from({ length: pages - 1 }, (_, i) =>
+              apiClient.getMeasurements(stationId, chunkSize, (i + 1) * chunkSize, undefined, from || undefined, to || undefined)
+            )
+          );
+          for (const page of rest) {
+            allItems = allItems.concat(page.items.map((m) => ({ date_time: m.date_time, value: m.value })));
+          }
+          allItems.sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+        }
+        return allItems;
       }
-
-      return allItems;
     } catch (err) {
       console.error('Error al obtener mediciones de comparación:', err);
       return [];
@@ -111,14 +140,14 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     monthAgo.setDate(today.getDate() - 30);
     const defaultFrom = monthAgo.toISOString().slice(0, 10);
 
-    const items = await fetchCompareData(s.id, fromDate || defaultFrom, toDate);
+    const items = await fetchCompareData(s.id, fromDate || defaultFrom, toDate, activeVariable);
 
     setCompareEntries((prev) =>
       prev.map((entry) =>
         entry.station.id === s.id ? { ...entry, history: items, isLoading: false } : entry
       )
     );
-  }, [fromDate, toDate, fetchCompareData, compareEntries]);
+  }, [fromDate, toDate, fetchCompareData, compareEntries, activeVariable]);
 
   const handleRemoveCompare = React.useCallback((stationId: number) => {
     setCompareEntries((prev) => prev.filter((e) => e.station.id !== stationId));
@@ -340,17 +369,16 @@ export const StationDetail: React.FC<StationDetailProps> = ({
       await fetchFlowAll(fromDate, toDate);
     } else {
       await fetchAll(selectedDatum, fromDate, toDate);
-      // Actualizar comparaciones con el mismo rango
-      if (compareEntries.length > 0) {
-        setCompareEntries((prev) => prev.map((e) => ({ ...e, isLoading: true })));
-        const updated = await Promise.all(
-          compareEntries.map(async (entry) => {
-            const items = await fetchCompareData(entry.station.id, fromDate, toDate);
-            return { ...entry, history: items, isLoading: false };
-          })
-        );
-        setCompareEntries(updated);
-      }
+    }
+    if (compareEntries.length > 0) {
+      setCompareEntries((prev) => prev.map((e) => ({ ...e, isLoading: true })));
+      const updated = await Promise.all(
+        compareEntries.map(async (entry) => {
+          const items = await fetchCompareData(entry.station.id, fromDate, toDate, activeVariable);
+          return { ...entry, history: items, isLoading: false };
+        })
+      );
+      setCompareEntries(updated);
     }
   };
 
@@ -364,16 +392,16 @@ export const StationDetail: React.FC<StationDetailProps> = ({
       await fetchFlowRecent();
     } else {
       await fetchRecent(selectedDatum);
-      if (compareEntries.length > 0) {
-        setCompareEntries((prev) => prev.map((e) => ({ ...e, isLoading: true })));
-        const updated = await Promise.all(
-          compareEntries.map(async (entry) => {
-            const items = await fetchCompareData(entry.station.id, dates.from, '');
-            return { ...entry, history: items, isLoading: false };
-          })
-        );
-        setCompareEntries(updated);
-      }
+    }
+    if (compareEntries.length > 0) {
+      setCompareEntries((prev) => prev.map((e) => ({ ...e, isLoading: true })));
+      const updated = await Promise.all(
+        compareEntries.map(async (entry) => {
+          const items = await fetchCompareData(entry.station.id, dates.from, '', activeVariable);
+          return { ...entry, history: items, isLoading: false };
+        })
+      );
+      setCompareEntries(updated);
     }
   };
 
@@ -392,7 +420,12 @@ export const StationDetail: React.FC<StationDetailProps> = ({
 
   const chartWidth = 1000;
   const chartHeight = 280;
-  const chartPadding = { top: 20, right: 20, bottom: 35, left: 40 };
+  const chartPadding = {
+    top: 20,
+    right: 20,
+    bottom: 35,
+    left: activeVariable === 'flow' ? 85 : 48,
+  };
   const activeMeta = SERIES_META[activeVariable] ?? SERIES_META.level;
   const COLOR_PRIMARY = activeMeta.color;
   const activeUnit = activeMeta.unit;
@@ -413,18 +446,14 @@ export const StationDetail: React.FC<StationDetailProps> = ({
 
   const allTimestamps = [
     ...activeHistory.map((m) => new Date(m.date_time).getTime()),
-    ...(activeVariable === 'level'
-      ? compareEntries.flatMap((e) => e.history.map((m) => new Date(m.date_time).getTime()))
-      : []),
+    ...compareEntries.flatMap((e) => e.history.map((m) => new Date(m.date_time).getTime())),
   ];
   const tMin = allTimestamps.length > 0 ? Math.min(...allTimestamps) : 0;
   const tMax = allTimestamps.length > 0 ? Math.max(...allTimestamps) : 1;
   const tRange = tMax - tMin || 1;
 
   const primaryValues = activeHistory.map((m) => m.value);
-  const compareValues = activeVariable === 'level'
-    ? compareEntries.flatMap((e) => e.history.map((m) => m.value))
-    : [];
+  const compareValues = compareEntries.flatMap((e) => e.history.map((m) => m.value));
 
   const allValues = compareValues.length > 0 ? [...primaryValues, ...compareValues] : primaryValues;
   const minVal = allValues.length > 0 ? Math.min(...allValues) : 0;
@@ -699,7 +728,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
               </div>
             ))}
 
-            {activeVariable === 'level' && compareEntries.length < MAX_COMPARE && (
+            {compareEntries.length < MAX_COMPARE && (
               <div style={{ position: 'relative' }}>
                 <button
                   className={`btn btn-compare${showPicker ? ' btn-compare--active' : ''}`}
@@ -713,7 +742,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                 {showPicker && (
                   <CompareStationPicker
                     excludedIds={excludedIds}
-                    allStations={allStations}
+                    allStations={selectableStations}
                     onSelect={handleSelectCompare}
                     onClose={() => setShowPicker(false)}
                   />
@@ -728,13 +757,13 @@ export const StationDetail: React.FC<StationDetailProps> = ({
             <div className="compare-legend__item">
               <span className="compare-legend__dot" style={{ background: COLOR_PRIMARY }} />
               <span className="compare-legend__label">{station.name}</span>
-              <span className="compare-legend__sub">cero local</span>
+              <span className="compare-legend__sub">{activeVariable === 'flow' ? 'caudal' : 'cero local'}</span>
             </div>
             {compareEntries.map((entry) => (
               <div className="compare-legend__item" key={entry.station.id}>
                 <span className="compare-legend__dot" style={{ background: COMPARE_COLORS[entry.colorIndex] }} />
                 <span className="compare-legend__label">{entry.station.name}</span>
-                <span className="compare-legend__sub">cero local</span>
+                <span className="compare-legend__sub">{activeVariable === 'flow' ? 'caudal' : 'cero local'}</span>
               </div>
             ))}
           </div>
@@ -876,7 +905,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                   <g key={`grid-${tickIdx}`}>
                     <line x1={chartPadding.left} y1={y} x2={chartWidth - chartPadding.right} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
                     <text x={chartPadding.left - 6} y={y + 3} textAnchor="end" fill="var(--text-muted)" className="mono" style={{ fontSize: '0.6rem' }}>
-                      {tickVal.toFixed(1)}m
+                      {activeVariable === 'flow' ? tickVal.toFixed(0) : tickVal.toFixed(1)} {activeUnit}
                     </text>
                   </g>
                 );
@@ -1017,7 +1046,9 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                         <g key={i}>
                           <circle cx={tx + 10} cy={rowY + 8} r="3" fill={s.color} />
                           <text x={tx + 19} y={rowY + 12} fill="var(--text-primary)" className="mono" style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>
-                            {s.value.toFixed(2)}m
+                            {activeVariable === 'flow'
+                              ? `${s.value.toLocaleString('es-AR', { maximumFractionDigits: 1 })} m³/s`
+                              : `${s.value.toFixed(2)} m`}
                           </text>
                           <text x={tx + 19} y={rowY + 24} fill="var(--text-secondary)" style={{ fontSize: '0.52rem' }}>
                             {formatDate(s.ts)}
