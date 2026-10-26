@@ -29,6 +29,7 @@ export function StationsPage() {
   const [riverDropdownOpen, setRiverDropdownOpen] = useState(false);
   const riverComboboxRef = useRef<HTMLDivElement>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [precipitationTogglingId, setPrecipitationTogglingId] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -82,6 +83,30 @@ export function StationsPage() {
       show(e instanceof Error ? e.message : 'Error al cambiar visibilidad', 'error');
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  // ── Precipitación ─────────────────────────────────────────────────────────
+
+  const handleTogglePrecipitation = async (station: Station) => {
+    if (station.latitud === null || station.longitud === null) return;
+    const newValue = !station.precipitation_enabled;
+    setStations((prev) =>
+      prev.map((s) => s.id === station.id ? { ...s, precipitation_enabled: newValue } : s)
+    );
+    setPrecipitationTogglingId(station.id);
+    try {
+      await api.stations.togglePrecipitation(station.id, newValue);
+      show(newValue
+        ? `Precipitación habilitada para "${station.name}"`
+        : `Precipitación deshabilitada para "${station.name}"`);
+    } catch (e: unknown) {
+      setStations((prev) =>
+        prev.map((s) => s.id === station.id ? { ...s, precipitation_enabled: !newValue } : s)
+      );
+      show(e instanceof Error ? e.message : 'Error al cambiar precipitación', 'error');
+    } finally {
+      setPrecipitationTogglingId(null);
     }
   };
 
@@ -258,13 +283,14 @@ export function StationsPage() {
                   <th>Fuente</th>
                   <th>Punto de aforo</th>
                   <th>Coordenadas</th>
+                  <th style={{ textAlign: 'center' }}>Precipitación</th>
                   <th style={{ textAlign: 'center' }}>Visible en frontend</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr className="loading-row">
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                         <span className="spinner" /> Cargando estaciones…
                       </div>
@@ -272,7 +298,7 @@ export function StationsPage() {
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div className="empty-state">
                         <Layers size={28} className="empty-state__icon" />
                         <div className="empty-state__title">No hay estaciones</div>
@@ -325,6 +351,33 @@ export function StationsPage() {
                           )}
                           <span className="td-editable__hint"><Pencil size={11} /></span>
                         </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <label
+                          className="toggle-switch"
+                          title={
+                            s.latitud === null || s.longitud === null
+                              ? 'Requiere coordenadas para habilitar precipitación'
+                              : s.precipitation_enabled
+                                ? 'Deshabilitar serie de precipitación'
+                                : 'Habilitar serie de precipitación'
+                          }
+                        >
+                          <input
+                            id={`precipitation-toggle-${s.id}`}
+                            type="checkbox"
+                            checked={s.precipitation_enabled}
+                            disabled={
+                              s.latitud === null ||
+                              s.longitud === null ||
+                              precipitationTogglingId === s.id
+                            }
+                            onChange={() => handleTogglePrecipitation(s)}
+                          />
+                          <span className="toggle-switch__track">
+                            <span className="toggle-switch__thumb" />
+                          </span>
+                        </label>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <label

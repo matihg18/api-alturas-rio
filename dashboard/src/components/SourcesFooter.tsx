@@ -11,6 +11,7 @@ const SOURCES: DataSource[] = [
   { label: 'CARU', url: 'http://www.caru.org.ar' },
   { label: 'Municipalidad de Gualeguaychú', url: 'https://gualeguaychu.gov.ar/alturadelrio' },
   { label: 'SGB — SACE (Brasil)', url: 'https://www.sgb.gov.br/sace' },
+  { label: 'Open-Meteo (precipitación, CC BY 4.0)', url: 'https://open-meteo.com/' },
 ];
 
 export function SourcesFooter() {
@@ -60,7 +61,7 @@ export function SourcesFooter() {
   return (
     <footer className="sources-footer">
       <span>
-        Los datos hidrológicos son recopilados de{' '}
+        Los datos hidrológicos y de precipitación son recopilados de{' '}
         <span
           ref={triggerRef}
           className={`sources-trigger${open ? ' is-open' : ''}`}
@@ -71,11 +72,17 @@ export function SourcesFooter() {
           tabIndex={0}
           aria-expanded={open}
           aria-label="Ver fuentes de datos"
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') open ? handleClose() : handleOpen(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              if (open) handleClose();
+              else handleOpen();
+            }
+          }}
         >
-          fuentes oficiales
+          fuentes de datos
         </span>
-        {' '}con fines informativos. La exactitud o vigencia de los datos es responsabilidad de cada organismo fuente.
+        {' '}con fines informativos. La exactitud o vigencia de los
+        datos es responsabilidad de cada organismo fuente.
       </span>
 
       {/* Popover renderizado fuera del flow del footer para escapar overflow:hidden */}

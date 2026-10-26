@@ -3,7 +3,12 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useNavigate } from 'react-router-dom';
 import { BarChart2, Layers } from 'lucide-react';
-import { apiClient, type Station, type LatestMeasurement } from '../services/api';
+import {
+  apiClient,
+  type Station,
+  type LatestMeasurement,
+  type PrecipitationMeasurement,
+} from '../services/api';
 
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -68,8 +73,11 @@ function StationPopup({ station, latest, activeSeries }: StationPopupProps) {
   const navigate = useNavigate();
   const [latestFlow, setLatestFlow] = useState<number | null>(null);
   const [loadingFlow, setLoadingFlow] = useState(false);
+  const [latestPrecipitation, setLatestPrecipitation] = useState<PrecipitationMeasurement | null>(null);
+  const [loadingPrecipitation, setLoadingPrecipitation] = useState(false);
 
   const hasFlow = (station.available_series ?? []).includes('flow');
+  const hasPrecipitation = (station.available_series ?? []).includes('precipitation');
 
   useEffect(() => {
     let isMounted = true;
@@ -92,15 +100,41 @@ function StationPopup({ station, latest, activeSeries }: StationPopupProps) {
     };
   }, [station.id, hasFlow]);
 
-  const formattedDate = latest?.date_time
-    ? new Date(latest.date_time).toLocaleString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-    : null;
+  useEffect(() => {
+    let isMounted = true;
+    if (hasPrecipitation) {
+      setLoadingPrecipitation(true);
+      apiClient
+        .getLatestPrecipitation(station.id)
+        .then((res) => {
+          if (isMounted) setLatestPrecipitation(res);
+        })
+        .catch(() => {
+          if (isMounted) setLatestPrecipitation(null);
+        })
+        .finally(() => {
+          if (isMounted) setLoadingPrecipitation(false);
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [station.id, hasPrecipitation]);
+
+  const formatPopupDate = (iso: string | null | undefined) =>
+    iso
+      ? new Date(iso).toLocaleString('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      : null;
+
+  const formattedDate = activeSeries === 'precipitation'
+    ? formatPopupDate(latestPrecipitation?.date_time)
+    : formatPopupDate(latest?.date_time);
 
   return (
     <div className="map-popup">
@@ -110,7 +144,13 @@ function StationPopup({ station, latest, activeSeries }: StationPopupProps) {
         <div className="map-popup__series-tags">
           {(station.available_series ?? []).map((s) => (
             <span key={s} className={`popup-series-tag popup-series-tag--${s}`}>
-              {s === 'level' ? 'Nivel' : s === 'flow' ? 'Caudal' : s}
+              {s === 'level'
+                ? 'Nivel'
+                : s === 'flow'
+                  ? 'Caudal'
+                  : s === 'precipitation'
+                    ? 'Precipitación'
+                    : s}
             </span>
           ))}
         </div>
@@ -157,11 +197,30 @@ function StationPopup({ station, latest, activeSeries }: StationPopupProps) {
           </div>
         )}
 
+        {hasPrecipitation && (activeSeries === null || activeSeries === 'precipitation') && (
+          <div
+            className="map-popup__metric map-popup__metric--clickable"
+            onClick={() => navigate('/dashboard', { state: { stationId: station.id, series: 'precipitation' } })}
+            title="Ver detalle de Precipitación en Dashboard"
+          >
+            <div className="map-popup__last-label">Última Precipitación</div>
+            {loadingPrecipitation ? (
+              <div className="map-popup__no-value">Cargando precipitación…</div>
+            ) : latestPrecipitation != null ? (
+              <div className="map-popup__value mono">
+                {latestPrecipitation.precipitation.toFixed(1)} mm
+              </div>
+            ) : (
+              <div className="map-popup__no-value">Sin datos de precipitación</div>
+            )}
+          </div>
+        )}
+
         {formattedDate && <div className="map-popup__date">{formattedDate}</div>}
       </div>
 
       <div className="map-popup__footer">
-        {hasFlow && activeSeries === null ? (
+        {activeSeries === null ? (
           <div className="map-popup__footer-btns">
             <button
               className="map-popup__btn"
@@ -170,17 +229,34 @@ function StationPopup({ station, latest, activeSeries }: StationPopupProps) {
               <BarChart2 size={12} />
               Ver Nivel
             </button>
-            <button
-              className="map-popup__btn map-popup__btn--flow"
-              onClick={() => navigate('/dashboard', { state: { stationId: station.id, series: 'flow' } })}
-            >
-              <BarChart2 size={12} />
-              Ver Caudal
-            </button>
+            {hasFlow && (
+              <button
+                className="map-popup__btn map-popup__btn--flow"
+                onClick={() => navigate('/dashboard', { state: { stationId: station.id, series: 'flow' } })}
+              >
+                <BarChart2 size={12} />
+                Ver Caudal
+              </button>
+            )}
+            {hasPrecipitation && (
+              <button
+                className="map-popup__btn map-popup__btn--precipitation"
+                onClick={() => navigate('/dashboard', { state: { stationId: station.id, series: 'precipitation' } })}
+              >
+                <BarChart2 size={12} />
+                Ver Precipitación
+              </button>
+            )}
           </div>
         ) : (
           <button
-            className={`map-popup__btn${activeSeries === 'flow' ? ' map-popup__btn--flow' : ''}`}
+            className={`map-popup__btn${
+              activeSeries === 'flow'
+                ? ' map-popup__btn--flow'
+                : activeSeries === 'precipitation'
+                  ? ' map-popup__btn--precipitation'
+                  : ''
+            }`}
             onClick={() =>
               navigate('/dashboard', {
                 state: { stationId: station.id, series: activeSeries ?? 'level' },
@@ -188,7 +264,14 @@ function StationPopup({ station, latest, activeSeries }: StationPopupProps) {
             }
           >
             <BarChart2 size={12} />
-            Ver detalle {activeSeries === 'flow' ? 'de Caudal' : activeSeries === 'level' ? 'de Nivel' : ''}
+            Ver detalle{' '}
+            {activeSeries === 'flow'
+              ? 'de Caudal'
+              : activeSeries === 'level'
+                ? 'de Nivel'
+                : activeSeries === 'precipitation'
+                  ? 'de Precipitación'
+                  : ''}
           </button>
         )}
       </div>
@@ -210,6 +293,7 @@ const ARGENTINA_CENTER: [number, number] = [-34.6, -64.2];
 const SERIES_LABELS: Record<string, string> = {
   level: 'Nivel',
   flow: 'Caudal',
+  precipitation: 'Precipitación',
 };
 
 export function StationMap({ stations }: StationMapProps) {

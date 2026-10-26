@@ -131,3 +131,66 @@ def test_get_gauge_point_for_station_not_found(client, seed_data):
     # station inexistente → 404
     response = client.get("/datums/station/99")
     assert response.status_code == 404
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Precipitation
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_get_precipitation_by_station_id_endpoint(client, seed_data):
+    response = client.get("/precipitation/1")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_count"] == 2
+    assert [item["precipitation"] for item in data["items"]] == [0.0, 2.5]
+
+
+def test_get_precipitation_by_station_id_not_found(client, seed_data):
+    response = client.get("/precipitation/999")
+
+    assert response.status_code == 404
+
+
+def test_get_precipitation_by_station_id_accepts_large_limit(client, seed_data):
+    response = client.get("/precipitation/1?limit=1000&sorting=date_time-asc")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_count"] == 2
+    assert [item["precipitation"] for item in data["items"]] == [0.0, 2.5]
+
+
+def test_get_latest_precipitation_by_station_id_endpoint(client, seed_data):
+    response = client.get("/precipitation/latest/1")
+
+    assert response.status_code == 200
+    assert response.json()["precipitation"] == 2.5
+
+
+def test_get_latest_precipitation_without_data_returns_404(client, seed_data):
+    response = client.get("/precipitation/latest/3")
+
+    assert response.status_code == 404
+
+
+def test_get_latest_precipitation_bulk(client, seed_data):
+    response = client.get("/precipitation/latest/bulk")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["station_id"] == 1
+    assert data["items"][0]["latest"]["precipitation"] == 2.5
+
+
+def test_station_available_series_includes_precipitation(client, seed_data):
+    data = client.get("/stations/1").json()
+
+    assert "precipitation" in data["available_series"]
+
+
+def test_station_available_series_excludes_precipitation_when_disabled(client, seed_data):
+    data = client.get("/stations/2").json()
+
+    assert "precipitation" not in data["available_series"]

@@ -1,5 +1,13 @@
 import React from 'react';
-import { Station, Measurement, LatestMeasurement, GaugePoint, FlowMeasurement, apiClient } from '../services/api';
+import {
+  Station,
+  Measurement,
+  LatestMeasurement,
+  GaugePoint,
+  FlowMeasurement,
+  PrecipitationMeasurement,
+  apiClient,
+} from '../services/api';
 import { MapPin, Clock, Loader2, GitCompare, X as XIcon } from 'lucide-react';
 import { CompareStationPicker } from './CompareStationPicker';
 
@@ -24,6 +32,7 @@ const COMPARE_COLORS = ['#f97316', '#a855f7', '#22c55e', '#ec4899'];
 const SERIES_META: Record<string, { label: string; unit: string; color: string }> = {
   level: { label: 'Nivel hidrométrico', unit: 'm', color: 'var(--accent-blue)' },
   flow: { label: 'Caudal', unit: 'm³/s', color: '#14b8a6' },
+  precipitation: { label: 'Precipitación', unit: 'mm', color: '#a78bfa' },
 };
 
 export const StationDetail: React.FC<StationDetailProps> = ({
@@ -66,12 +75,19 @@ export const StationDetail: React.FC<StationDetailProps> = ({
   const [flowHistory, setFlowHistory] = React.useState<FlowMeasurement[]>([]);
   const [latestFlow, setLatestFlow] = React.useState<FlowMeasurement | null>(null);
   const [isFlowLoading, setIsFlowLoading] = React.useState(false);
+  const [precipitationHistory, setPrecipitationHistory] = React.useState<PrecipitationMeasurement[]>([]);
+  const [latestPrecipitation, setLatestPrecipitation] = React.useState<PrecipitationMeasurement | null>(null);
+  const [isPrecipitationLoading, setIsPrecipitationLoading] = React.useState(false);
+  const precipitationRequestRef = React.useRef(0);
   const [showPicker, setShowPicker] = React.useState(false);
   const [compareEntries, setCompareEntries] = React.useState<CompareEntry[]>([]);
 
   const selectableStations = React.useMemo(() => {
     if (activeVariable === 'flow') {
       return allStations.filter((s) => (s.available_series ?? []).includes('flow'));
+    }
+    if (activeVariable === 'precipitation') {
+      return allStations.filter((s) => (s.available_series ?? []).includes('precipitation'));
     }
     return allStations;
   }, [allStations, activeVariable]);
@@ -98,6 +114,34 @@ export const StationDetail: React.FC<StationDetailProps> = ({
           );
           for (const page of rest) {
             allItems = allItems.concat(page.items.map((f) => ({ date_time: f.date_time, value: f.flow })));
+          }
+          allItems.sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
+        }
+        return allItems;
+      } else if (variable === 'precipitation') {
+        const first = await apiClient.getPrecipitationMeasurements(
+          stationId, chunkSize, 0, from || undefined, to || undefined
+        );
+        const total = first.total_count;
+        let allItems = first.items.map((p) => ({
+          date_time: p.date_time,
+          value: p.precipitation,
+        }));
+
+        if (total > chunkSize) {
+          const pages = Math.ceil(total / chunkSize);
+          const rest = await Promise.all(
+            Array.from({ length: pages - 1 }, (_, i) =>
+              apiClient.getPrecipitationMeasurements(
+                stationId, chunkSize, (i + 1) * chunkSize, from || undefined, to || undefined
+              )
+            )
+          );
+          for (const page of rest) {
+            allItems = allItems.concat(page.items.map((p) => ({
+              date_time: p.date_time,
+              value: p.precipitation,
+            })));
           }
           allItems.sort((a, b) => new Date(a.date_time).getTime() - new Date(b.date_time).getTime());
         }
@@ -241,6 +285,8 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     }
     setFlowHistory([]);
     setLatestFlow(null);
+    setPrecipitationHistory([]);
+    setLatestPrecipitation(null);
     setCompareEntries([]);
     setShowPicker(false);
 
@@ -300,12 +346,77 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     }
   }, [station.id]);
 
+  const fetchPrecipitationPages = React.useCallback(async (
+    from: string | undefined,
+    to: string | undefined,
+    requestId: number,
+  ) => {
+    const chunkSize = 1000;
+    const first = await apiClient.getPrecipitationMeasurements(
+      station.id, chunkSize, 0, from, to
+    );
+    let allItems = [...first.items];
+    const pages = Math.ceil(first.total_count / chunkSize);
+    for (let i = 1; i < pages; i++) {
+      if (requestId !== precipitationRequestRef.current) return null;
+      const page = await apiClient.getPrecipitationMeasurements(
+        station.id, chunkSize, i * chunkSize, from, to
+      );
+      allItems = allItems.concat(page.items);
+    }
+    return allItems;
+  }, [station.id]);
+
+  const fetchPrecipitationRecent = React.useCallback(async () => {
+    const today = new Date();
+    const monthAgo = new Date(today);
+    monthAgo.setDate(today.getDate() - 30);
+    const fromIso = monthAgo.toISOString().slice(0, 10);
+    const requestId = ++precipitationRequestRef.current;
+    setIsPrecipitationLoading(true);
+    try {
+      const [items, latest] = await Promise.all([
+        fetchPrecipitationPages(fromIso, undefined, requestId),
+        apiClient.getLatestPrecipitation(station.id).catch(() => null),
+      ]);
+      if (requestId !== precipitationRequestRef.current || items === null) return;
+      setPrecipitationHistory(items);
+      setLatestPrecipitation(latest);
+    } catch (err) {
+      console.error('Error al obtener precipitación:', err);
+    } finally {
+      if (requestId === precipitationRequestRef.current) setIsPrecipitationLoading(false);
+    }
+  }, [station.id, fetchPrecipitationPages]);
+
+  const fetchPrecipitationAll = React.useCallback(async (from: string, to: string) => {
+    const requestId = ++precipitationRequestRef.current;
+    setIsPrecipitationLoading(true);
+    try {
+      const items = await fetchPrecipitationPages(
+        from || undefined, to || undefined, requestId
+      );
+      if (requestId !== precipitationRequestRef.current || items === null) return;
+      setPrecipitationHistory(items);
+    } catch (err) {
+      console.error('Error al obtener precipitación:', err);
+    } finally {
+      if (requestId === precipitationRequestRef.current) setIsPrecipitationLoading(false);
+    }
+  }, [fetchPrecipitationPages]);
+
   React.useEffect(() => {
     if (activeVariable === 'flow') {
       if (isFiltered) {
         fetchFlowAll(fromDate, toDate);
       } else {
         fetchFlowRecent();
+      }
+    } else if (activeVariable === 'precipitation') {
+      if (isFiltered) {
+        fetchPrecipitationAll(fromDate, toDate);
+      } else {
+        fetchPrecipitationRecent();
       }
     }
   }, [activeVariable, station.id]);
@@ -367,6 +478,8 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     setCurrentPage(1);
     if (activeVariable === 'flow') {
       await fetchFlowAll(fromDate, toDate);
+    } else if (activeVariable === 'precipitation') {
+      await fetchPrecipitationAll(fromDate, toDate);
     } else {
       await fetchAll(selectedDatum, fromDate, toDate);
     }
@@ -390,6 +503,8 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     setCurrentPage(1);
     if (activeVariable === 'flow') {
       await fetchFlowRecent();
+    } else if (activeVariable === 'precipitation') {
+      await fetchPrecipitationRecent();
     } else {
       await fetchRecent(selectedDatum);
     }
@@ -432,15 +547,21 @@ export const StationDetail: React.FC<StationDetailProps> = ({
 
   const activeHistory: { date_time: string; value: number }[] = activeVariable === 'flow'
     ? flowHistory.map((f) => ({ date_time: f.date_time, value: f.flow }))
-    : displayHistory;
+    : activeVariable === 'precipitation'
+      ? precipitationHistory.map((p) => ({ date_time: p.date_time, value: p.precipitation }))
+      : displayHistory;
 
   const activeLatestValue: number | null = activeVariable === 'flow'
     ? (latestFlow?.flow ?? null)
-    : (displayLatest?.value ?? null);
+    : activeVariable === 'precipitation'
+      ? (latestPrecipitation?.precipitation ?? null)
+      : (displayLatest?.value ?? null);
 
   const activeLatestDate: string | null = activeVariable === 'flow'
     ? (latestFlow?.date_time ?? null)
-    : (displayLatest?.date_time ?? null);
+    : activeVariable === 'precipitation'
+      ? (latestPrecipitation?.date_time ?? null)
+      : (displayLatest?.date_time ?? null);
 
   const hasChart = activeHistory.length > 0;
 
@@ -611,14 +732,17 @@ export const StationDetail: React.FC<StationDetailProps> = ({
           </span>
 
           <div style={{ margin: '0.8rem 0', display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
-            {(activeVariable === 'flow' && isFlowLoading) ? (
+            {((activeVariable === 'flow' && isFlowLoading) ||
+              (activeVariable === 'precipitation' && isPrecipitationLoading)) ? (
               <Loader2 size={24} className="spin" style={{ color: COLOR_PRIMARY }} />
             ) : activeLatestValue !== null ? (
               <>
                 <span className="mono" style={{ fontSize: '3rem', fontWeight: '700', color: 'var(--text-primary)', lineHeight: '1' }}>
                   {activeVariable === 'flow'
                     ? activeLatestValue.toFixed(0)
-                    : activeLatestValue.toFixed(2)}
+                    : activeVariable === 'precipitation'
+                      ? activeLatestValue.toFixed(1)
+                      : activeLatestValue.toFixed(2)}
                 </span>
                 <span style={{ fontSize: '1.2rem', color: COLOR_PRIMARY, fontWeight: '600', marginBottom: '4px' }}>
                   {activeUnit}
@@ -679,6 +803,13 @@ export const StationDetail: React.FC<StationDetailProps> = ({
           {activeVariable === 'flow' && (
             <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
               Caudal estimado mediante ajuste de curvas de descarga nivel-caudal.
+            </div>
+          )}
+
+          {activeVariable === 'precipitation' && (
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Precipitación horaria modelada por Open-Meteo (ERA5 / pronóstico reciente), en mm.
+              Dato de grilla, no observación in-situ. Fuente: Open-Meteo, licencia CC BY 4.0.
             </div>
           )}
         </div>
@@ -757,13 +888,25 @@ export const StationDetail: React.FC<StationDetailProps> = ({
             <div className="compare-legend__item">
               <span className="compare-legend__dot" style={{ background: COLOR_PRIMARY }} />
               <span className="compare-legend__label">{station.name}</span>
-              <span className="compare-legend__sub">{activeVariable === 'flow' ? 'caudal' : 'cero local'}</span>
+              <span className="compare-legend__sub">
+                {activeVariable === 'flow'
+                  ? 'caudal'
+                  : activeVariable === 'precipitation'
+                    ? 'precipitación'
+                    : 'cero local'}
+              </span>
             </div>
             {compareEntries.map((entry) => (
               <div className="compare-legend__item" key={entry.station.id}>
                 <span className="compare-legend__dot" style={{ background: COMPARE_COLORS[entry.colorIndex] }} />
                 <span className="compare-legend__label">{entry.station.name}</span>
-                <span className="compare-legend__sub">{activeVariable === 'flow' ? 'caudal' : 'cero local'}</span>
+                <span className="compare-legend__sub">
+                  {activeVariable === 'flow'
+                    ? 'caudal'
+                    : activeVariable === 'precipitation'
+                      ? 'precipitación'
+                      : 'cero local'}
+                </span>
               </div>
             ))}
           </div>
@@ -1048,7 +1191,9 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                           <text x={tx + 19} y={rowY + 12} fill="var(--text-primary)" className="mono" style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>
                             {activeVariable === 'flow'
                               ? `${s.value.toLocaleString('es-AR', { maximumFractionDigits: 1 })} m³/s`
-                              : `${s.value.toFixed(2)} m`}
+                              : activeVariable === 'precipitation'
+                                ? `${s.value.toFixed(1)} mm`
+                                : `${s.value.toFixed(2)} m`}
                           </text>
                           <text x={tx + 19} y={rowY + 24} fill="var(--text-secondary)" style={{ fontSize: '0.52rem' }}>
                             {formatDate(s.ts)}
@@ -1067,7 +1212,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
       <div className="card-panel">
         <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
-            Historial de Mediciones — {datumLabel}
+            Historial de Mediciones — {activeVariable === 'level' ? datumLabel : activeMeta.label}
           </span>
           <span className="mono" style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
             Pág. {currentPage} de {totalPages}
@@ -1101,7 +1246,11 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                     <tr key={m.date_time} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
                       <td style={{ padding: '0.6rem 0.4rem', color: 'var(--text-secondary)' }}>{formatDate(m.date_time)}</td>
                       <td className="mono" style={{ textAlign: 'right', padding: '0.6rem 0.4rem', fontWeight: '600', color: 'var(--text-primary)' }}>
-                        {activeVariable === 'flow' ? m.value.toFixed(0) : m.value.toFixed(2)}
+                        {activeVariable === 'flow'
+                          ? m.value.toFixed(0)
+                          : activeVariable === 'precipitation'
+                            ? m.value.toFixed(1)
+                            : m.value.toFixed(2)}
                       </td>
                     </tr>
                   ))}

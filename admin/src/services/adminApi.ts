@@ -10,6 +10,7 @@ export interface Station {
   alert_value: number | null;
   evacuation_value: number | null;
   is_visible: boolean;
+  precipitation_enabled: boolean;
   gauge_point_id: number | null;
   gauge_point: GaugePoint | null;
 }
@@ -47,6 +48,7 @@ export interface OffsetCreate { gauge_point_id: number; datum_type_id: number; o
 export interface OffsetUpdate { offset_local_to_datum: number; }
 export interface AssignGaugePoint { gauge_point_id: number | null; }
 export interface StationCoordinatesUpdate { latitud: number | null; longitud: number | null; }
+export interface StationPrecipitationUpdate { precipitation_enabled: boolean; }
 
 // ── Client ────────────────────────────────────────────────────────────────
 
@@ -83,6 +85,8 @@ export const api = {
     assignGaugePoint: (id: number, body: AssignGaugePoint) => request<Station>('PUT', `/stations/${id}/gauge-point`, body),
     toggleVisibility: (id: number, is_visible: boolean) => request<Station>('PATCH', `/stations/${id}/visibility`, { is_visible }),
     updateCoordinates: (id: number, body: StationCoordinatesUpdate) => request<Station>('PATCH', `/stations/${id}/coordinates`, body),
+    togglePrecipitation: (id: number, precipitation_enabled: boolean) =>
+      request<Station>('PATCH', `/stations/${id}/precipitation`, { precipitation_enabled }),
   },
   gaugePoints: {
     list: () => request<GaugePoint[]>('GET', '/gauge-points'),

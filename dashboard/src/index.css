@@ -988,6 +988,12 @@ h6 {
   border: 1px solid color-mix(in srgb, #10b981 40%, transparent);
 }
 
+.popup-series-tag--precipitation {
+  background: color-mix(in srgb, #a78bfa 20%, transparent);
+  color: #a78bfa;
+  border: 1px solid color-mix(in srgb, #a78bfa 40%, transparent);
+}
+
 .map-popup__date {
   font-size: 0.68rem;
   color: var(--text-secondary);
@@ -1061,6 +1067,16 @@ h6 {
 
 .map-popup__btn--flow:hover {
   background: color-mix(in srgb, #10b981 30%, transparent) !important;
+}
+
+.map-popup__btn--precipitation {
+  background: color-mix(in srgb, #a78bfa 15%, transparent) !important;
+  color: #a78bfa !important;
+  border-color: color-mix(in srgb, #a78bfa 30%, transparent) !important;
+}
+
+.map-popup__btn--precipitation:hover {
+  background: color-mix(in srgb, #a78bfa 30%, transparent) !important;
 }
 
 .map-popup__metric--clickable {

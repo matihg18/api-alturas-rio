@@ -87,6 +87,27 @@ export interface DischargeCurveParams {
   notes: string | null;
 }
 
+export interface PrecipitationMeasurement {
+  id: number;
+  station_id: number;
+  date_time: string;
+  precipitation: number; // mm
+}
+
+export interface PagedPrecipitationMeasurementResponse {
+  total_count: number;
+  items: PrecipitationMeasurement[];
+}
+
+export interface LatestPrecipitationItem {
+  station_id: number;
+  latest: PrecipitationMeasurement | null;
+}
+
+export interface BulkLatestPrecipitationResponse {
+  items: LatestPrecipitationItem[];
+}
+
 
 const BASE = '/api';
 
@@ -170,5 +191,26 @@ export const apiClient = {
 
   async getDischargeCurveParams(stationId: number): Promise<DischargeCurveParams> {
     return apiFetch<DischargeCurveParams>(`/flow/curve/${stationId}`);
+  },
+
+  async getPrecipitationMeasurements(
+    stationId: number,
+    limit = 1000,
+    skip = 0,
+    fromDate?: string,
+    toDate?: string,
+  ): Promise<PagedPrecipitationMeasurementResponse> {
+    let url = `/precipitation/${stationId}?limit=${limit}&skip=${skip}&sorting=date_time-asc`;
+    if (fromDate) url += `&from_date=${encodeURIComponent(fromDate)}`;
+    if (toDate) url += `&to_date=${encodeURIComponent(toDate)}`;
+    return apiFetch<PagedPrecipitationMeasurementResponse>(url);
+  },
+
+  async getLatestPrecipitation(stationId: number): Promise<PrecipitationMeasurement> {
+    return apiFetch<PrecipitationMeasurement>(`/precipitation/latest/${stationId}`);
+  },
+
+  async getLatestPrecipitationBulk(): Promise<BulkLatestPrecipitationResponse> {
+    return apiFetch<BulkLatestPrecipitationResponse>('/precipitation/latest/bulk');
   },
 };
