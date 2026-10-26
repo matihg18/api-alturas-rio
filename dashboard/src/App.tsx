@@ -33,6 +33,7 @@ function App() {
   const riverComboboxRef = useRef<HTMLDivElement>(null);
   const [seriesFilter, setSeriesFilter] = useState<string | null>(requestedSeries); // requestedSeries o null
   const [latestFlowMap, setLatestFlowMap] = useState<Map<number, number>>(new Map());
+  const [latestPrecipitationMap, setLatestPrecipitationMap] = useState<Map<number, number>>(new Map());
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [status, setStatus] = useState<AppStatus>('loading');
@@ -90,6 +91,26 @@ function App() {
           }
         });
         setLatestFlowMap(flowMap);
+      }
+
+      const precipitationStations = stationList.filter(
+        (s) => (s.available_series ?? []).includes('precipitation')
+      );
+      if (precipitationStations.length > 0) {
+        try {
+          const precipitationBulk = await apiClient.getLatestPrecipitationBulk();
+          const precipitationMap = new Map<number, number>();
+          precipitationBulk.items.forEach((entry) => {
+            if (entry.latest) {
+              precipitationMap.set(entry.station_id, entry.latest.precipitation);
+            }
+          });
+          setLatestPrecipitationMap(precipitationMap);
+        } catch {
+          setLatestPrecipitationMap(new Map());
+        }
+      } else {
+        setLatestPrecipitationMap(new Map());
       }
 
       setErrorMsg('');
@@ -187,7 +208,11 @@ function App() {
     return Array.from(set);
   }, [stations]);
 
-  const SERIES_LABELS: Record<string, string> = { level: 'Nivel', flow: 'Caudal' };
+  const SERIES_LABELS: Record<string, string> = {
+    level: 'Nivel',
+    flow: 'Caudal',
+    precipitation: 'Precipitación',
+  };
 
   const selectedStation = stations.find((s) => s.id === selectedStationId) ?? null;
 
@@ -341,6 +366,14 @@ function App() {
                           latestFlowMap.get(station.id) != null ? (
                             <span className="mono station-item__value">
                               {Math.round(latestFlowMap.get(station.id)!)} m³/s
+                            </span>
+                          ) : (
+                            <span className="station-item__no-value">—</span>
+                          )
+                        ) : seriesFilter === 'precipitation' ? (
+                          latestPrecipitationMap.get(station.id) != null ? (
+                            <span className="mono station-item__value">
+                              {latestPrecipitationMap.get(station.id)!.toFixed(1)} mm
                             </span>
                           ) : (
                             <span className="station-item__no-value">—</span>

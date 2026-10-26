@@ -54,7 +54,7 @@ El sistema se basa en una **arquitectura distribuida de microservicios independi
 
 ## 📡 Fuentes de Datos Integradas
 
-El scraper integra actualmente **cuatro fuentes oficiales** de datos hidrométricos, procesadas de forma concurrente o configurable:
+El scraper integra actualmente **cuatro fuentes oficiales** de datos hidrométricos y **una fuente de precipitación modelada**, procesadas de forma concurrente o configurable:
 
 | Fuente | Descripción | Método de Extracción | Configuración Env |
 |---|---|---|---|
@@ -62,6 +62,20 @@ El scraper integra actualmente **cuatro fuentes oficiales** de datos hidrométri
 | **Instituto Nacional del Agua (INA)** | Series de tiempo hidrométricas oficiales (API `alerta.ina.gob.ar/a5`). | API REST JSON | `INA_ENABLED`, `INA_INTERVAL` |
 | **Comisión Administradora del Río Uruguay (CARU)** | Mediciones de estaciones a lo largo del Río Uruguay. | Web Scraping / API Web | `CARU_ENABLED`, `CARU_INTERVAL` |
 | **Municipalidad de Gualeguaychú** | Monitoreo del nivel del Río Gualeguaychú en la cuenca local. | Web Scraping | `MUNICIPALIDAD_GCHU_ENABLED`, `MUNICIPALIDAD_GCHU_INTERVAL` |
+| **Open-Meteo** | Precipitación horaria modelada para las estaciones habilitadas (mm). | API REST JSON (Incremental y Backfill) | `OPEN_METEO_ENABLED`, `OPEN_METEO_INTERVAL` |
+
+### Precipitación con Open-Meteo
+
+La serie de precipitación se asocia a **estaciones existentes** y se habilita por estación desde el Panel de Administración (columna *Precipitación*), siempre que la estación tenga coordenadas. No se crean estaciones nuevas a partir de esta fuente.
+
+* **Granularidad y unidad:** valores horarios en milímetros (mm), correspondientes a la hora precedente.
+* **Zona horaria:** `America/Argentina/Cordoba`; los timestamps se almacenan como *naive* local, igual que el resto de las mediciones.
+* **Modo incremental:** consulta los últimos `OPEN_METEO_PAST_DAYS` días (máximo 92) contra la API de pronóstico.
+* **Modo backfill:** reconstruye el histórico en bloques de `OPEN_METEO_BACKFILL_CHUNK_DAYS` días contra la API de archivo (`models=era5`), con una demora de `OPEN_METEO_ARCHIVE_DELAY_DAYS` días para dar tiempo a la consolidación del reanálisis.
+* **Límite gratuito:** 10.000 llamadas/día. El scraper agrupa hasta `OPEN_METEO_MAX_POINTS_PER_REQUEST` coordenadas por request y estima el consumo antes del backfill; si supera `OPEN_METEO_DAILY_CALL_BUDGET`, registra una advertencia.
+* **Atribución:** datos de [Open-Meteo](https://open-meteo.com/) bajo licencia [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+> **Limitación:** la precipitación de Open-Meteo es un dato **modelado en grilla**, no una observación in-situ. Puede diferir de los registros pluviométricos locales, especialmente en eventos convectivos. Además, el empalme entre la API de archivo (ERA5) y la de pronóstico puede presentar una discontinuidad menor en el borde temporal.
 
 ---
 
@@ -150,6 +164,8 @@ Para reconstruir datos históricos (por ejemplo, los últimos 30 días en INA o 
 docker compose run --rm -e SCRAPER_MODE=backfill -e BACKFILL_DAYS=30 scraper
 ```
 
+El mismo comando aplica a Open-Meteo para las estaciones con precipitación habilitada. Para históricos largos, tené en cuenta el presupuesto diario de llamadas (`OPEN_METEO_DAILY_CALL_BUDGET`).
+
 ### Habilitar / Deshabilitar Fuentes
 Puedes activar o desactivar fuentes específicas modificando las variables de entorno en tu `.env`:
 
@@ -183,7 +199,10 @@ Accede a la documentación interactiva (Swagger UI / OpenAPI) en `http://localho
 * `GET /stations`: Listado paginado de estaciones hidrométricas.
 * `GET /stations/{station_id}`: Detalle de una estación específica.
 * `GET /measurements/{station_id}`: Historial de mediciones de una estación (admite `?datum=IGN` o `?datum=WHARTON`, paginación y rango de fechas).
-* `GET /measurements/latest/{station_id}`: Úlima lectura registrada para una estación.
+* `GET /measurements/latest/{station_id}`: Última lectura registrada para una estación.
+* `GET /precipitation/{station_id}`: Historial de precipitación horaria de una estación (paginación y rango de fechas).
+* `GET /precipitation/latest/{station_id}`: Última precipitación registrada para una estación.
+* `GET /precipitation/latest/bulk`: Última precipitación de todas las estaciones visibles con la serie habilitada.
 * `GET /alerts`: Estaciones en nivel de alerta.
 * `GET /alerts/evacuation`: Estaciones en nivel de evacuación.
 * `GET /datums`: Listado de tipos de referencia altimétrica (IGN, Wharton, etc.).

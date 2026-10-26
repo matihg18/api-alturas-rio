@@ -2,8 +2,13 @@ from datetime import datetime
 from unittest.mock import MagicMock
 from scraper.context import ScraperContext
 from scraper.repository import ScraperRepository
-from scraper.schemas import RawStationData, RawMeasurementData
-from common.models import Station, Measurement
+from scraper.schemas import (
+    PrecipitationPoint,
+    RawMeasurementData,
+    RawPrecipitationData,
+    RawStationData,
+)
+from common.models import Station, Measurement, PrecipitationMeasurement
 from common.models import ScraperError
 
 
@@ -324,3 +329,135 @@ def test_log_error_does_not_raise_on_db_failure(db_session, monkeypatch):
 
     # No debe lanzar
     repo.log_error(source="Prefectura", error_type="UNKNOWN", error_message="algo")
+
+
+# ---------------------------------------------------------------------------
+# Tests de precipitación
+# ---------------------------------------------------------------------------
+
+def test_get_precipitation_points_filters_enabled_and_coordinates(db_session):
+    enabled = Station(
+        name="A",
+        river="URUGUAY",
+        source="test",
+        latitud=-32.0,
+        longitud=-58.0,
+        precipitation_enabled=True,
+    )
+    disabled = Station(
+        name="B",
+        river="URUGUAY",
+        source="test",
+        latitud=-33.0,
+        longitud=-59.0,
+        precipitation_enabled=False,
+    )
+    no_coords = Station(
+        name="C",
+        river="URUGUAY",
+        source="test",
+        latitud=None,
+        longitud=None,
+        precipitation_enabled=True,
+    )
+    db_session.add_all([enabled, disabled, no_coords])
+    db_session.commit()
+
+    points = ScraperRepository(db_session).get_precipitation_points()
+
+    assert points == [
+        PrecipitationPoint(
+            station_id=enabled.id,
+            station_name="A",
+            latitud=-32.0,
+            longitud=-58.0,
+        )
+    ]
+
+
+def test_save_precipitation_measurements_dedupes_and_keeps_zero(db_session):
+    station = Station(
+        name="A",
+        river="URUGUAY",
+        source="test",
+        latitud=-32.0,
+        longitud=-58.0,
+        precipitation_enabled=True,
+    )
+    db_session.add(station)
+    db_session.commit()
+    repo = ScraperRepository(db_session)
+
+    rows = [
+        RawPrecipitationData(
+            station_id=station.id,
+            station_name="A",
+            date_time=datetime(2026, 1, 1, 0, 0),
+            precipitation=0.0,
+        ),
+        RawPrecipitationData(
+            station_id=station.id,
+            station_name="A",
+            date_time=datetime(2026, 1, 1, 0, 0),
+            precipitation=5.0,
+        ),
+        RawPrecipitationData(
+            station_id=station.id,
+            station_name="A",
+            date_time=datetime(2026, 1, 1, 1, 0),
+            precipitation=2.0,
+        ),
+    ]
+
+    assert repo.save_precipitation_measurements(rows) == 2
+
+    saved = (
+        db_session.query(PrecipitationMeasurement)
+        .order_by(PrecipitationMeasurement.date_time)
+        .all()
+    )
+    assert len(saved) == 2
+    assert saved[0].precipitation == 0.0
+    assert saved[1].precipitation == 2.0
+
+    assert repo.save_precipitation_measurements(rows) == 0
+
+
+def test_save_precipitation_measurements_empty_returns_zero(db_session):
+    repo = ScraperRepository(db_session)
+
+    assert repo.save_precipitation_measurements([]) == 0
+
+
+def test_context_skips_generic_save_when_strategy_persists_internally():
+    strategy = MagicMock()
+    strategy.persists_internally = True
+    strategy.get_data.return_value = ([], [])
+    syncer = MagicMock()
+    syncer.sync.return_value = []
+    repo = MagicMock()
+
+    ScraperContext(
+        strategy=strategy,
+        station_syncer=syncer,
+        repository=repo,
+    ).execute()
+
+    repo.save_measurements.assert_not_called()
+
+
+def test_context_saves_generic_measurements_when_strategy_does_not_persist():
+    strategy = MagicMock()
+    strategy.persists_internally = False
+    strategy.get_data.return_value = ([], [])
+    syncer = MagicMock()
+    syncer.sync.return_value = []
+    repo = MagicMock()
+
+    ScraperContext(
+        strategy=strategy,
+        station_syncer=syncer,
+        repository=repo,
+    ).execute()
+
+    repo.save_measurements.assert_called_once_with([])

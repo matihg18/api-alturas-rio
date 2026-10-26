@@ -6,6 +6,7 @@ from api.schemas import (
     LatestMeasurementResponse,
     StationResponse,
     PagingParams,
+    PrecipitationPagingParams,
     DateFilters,
     PagedResultResponse,
     ReferenceZeroTypeResponse,
@@ -15,6 +16,10 @@ from api.schemas import (
     FlowMeasurementResponse,
     PagedFlowMeasurementResponse,
     DischargeCurveParamsResponse,
+    PrecipitationMeasurementResponse,
+    PagedPrecipitationMeasurementResponse,
+    LatestPrecipitationItem,
+    BulkLatestPrecipitationResponse,
 )
 from api.repository import ApiRepository
 from api.rate_limiter import limiter, rate_limit_exceeded_handler, RATE_LIMIT_DEFAULT
@@ -64,7 +69,7 @@ def get_stations(
     enriched = [
         StationResponse(
             **{k: v for k, v in vars(s).items() if not k.startswith('_')},
-            available_series=_build_available_series(s.id, flow_ids),
+            available_series=_build_available_series(s, flow_ids),
         )
         for s in result.items
     ]
@@ -85,14 +90,20 @@ def get_station_by_id(
     flow_ids = repository.get_station_ids_with_flow_curve()
     return StationResponse(
         **{k: v for k, v in vars(station).items() if not k.startswith('_')},
-        available_series=_build_available_series(station.id, flow_ids),
+        available_series=_build_available_series(station, flow_ids),
     )
 
 
-def _build_available_series(station_id: int, flow_curve_ids: set[int]) -> list[str]:
+def _build_available_series(station, flow_curve_ids: set[int]) -> list[str]:
     series = ['level']
-    if station_id in flow_curve_ids:
+    if station.id in flow_curve_ids:
         series.append('flow')
+    if (
+        station.precipitation_enabled
+        and station.latitud is not None
+        and station.longitud is not None
+    ):
+        series.append('precipitation')
     return series
 
 
@@ -311,3 +322,77 @@ def get_discharge_curve_params(
             detail=f"Station {station_id} has no discharge curve configured"
         )
     return DischargeCurveParamsResponse.model_validate(curve)
+
+
+@app.get(
+    "/precipitation/latest/bulk",
+    response_model=BulkLatestPrecipitationResponse,
+)
+@limiter.limit(RATE_LIMIT_DEFAULT)
+def get_latest_precipitation_bulk(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    repository = ApiRepository(db)
+    bulk = repository.get_latest_precipitation_bulk()
+    items = [
+        LatestPrecipitationItem(
+            station_id=station_id,
+            latest=PrecipitationMeasurementResponse.model_validate(row),
+        )
+        for station_id, row in sorted(bulk.items())
+    ]
+    return BulkLatestPrecipitationResponse(items=items)
+
+
+@app.get(
+    "/precipitation/latest/{station_id}",
+    response_model=PrecipitationMeasurementResponse,
+)
+@limiter.limit(RATE_LIMIT_DEFAULT)
+def get_latest_precipitation_by_station_id(
+    request: Request,
+    station_id: int,
+    db: Session = Depends(get_db),
+):
+    repository = ApiRepository(db)
+    station = repository.get_station_by_id(station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station with id {station_id} not found")
+
+    latest = repository.get_latest_precipitation_by_station_id(station_id)
+    if not latest:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No precipitation measurements found for station {station_id}",
+        )
+    return PrecipitationMeasurementResponse.model_validate(latest)
+
+
+@app.get(
+    "/precipitation/{station_id}",
+    response_model=PagedPrecipitationMeasurementResponse,
+)
+@limiter.limit(RATE_LIMIT_DEFAULT)
+def get_precipitation_by_station_id(
+    request: Request,
+    station_id: int,
+    paging: PrecipitationPagingParams = Depends(),
+    date_filters: DateFilters = Depends(),
+    db: Session = Depends(get_db),
+):
+    repository = ApiRepository(db)
+    station = repository.get_station_by_id(station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station with id {station_id} not found")
+
+    result = repository.get_precipitation_by_station_id(
+        station_id, paging, date_filters
+    )
+    return PagedPrecipitationMeasurementResponse(
+        total_count=result.total_count,
+        items=[
+            PrecipitationMeasurementResponse.model_validate(item)
+            for item in result.items
+        ],
+    )

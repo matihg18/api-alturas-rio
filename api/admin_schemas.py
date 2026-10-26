@@ -56,6 +56,10 @@ class StationCoordinatesUpdate(BaseModel):
     longitud: Optional[float] = None
 
 
+class StationPrecipitationUpdate(BaseModel):
+    precipitation_enabled: bool
+
+
 # ── Response models ──────────────────────────────────────────────────────────
 
 class DatumTypeAdminResponse(BaseModel):
@@ -94,6 +98,7 @@ class StationAdminResponse(BaseModel):
     alert_value: Optional[float] = None
     evacuation_value: Optional[float] = None
     is_visible: bool
+    precipitation_enabled: bool = False
     gauge_point_id: Optional[int] = None
     gauge_point: Optional[GaugePointAdminResponse] = None
     model_config = ConfigDict(from_attributes=True)

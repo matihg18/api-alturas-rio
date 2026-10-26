@@ -21,6 +21,7 @@ from api.admin_schemas import (
     StationAssignGaugePoint,
     StationVisibilityUpdate,
     StationCoordinatesUpdate,
+    StationPrecipitationUpdate,
     StationAdminResponse,
     MeasurementImportResult,
 )
@@ -90,6 +91,26 @@ def admin_update_station_coordinates(
 
     station.latitud = body.latitud
     station.longitud = body.longitud
+    db.commit()
+    db.refresh(station)
+    return station
+
+
+@router.patch(
+    "/stations/{station_id}/precipitation",
+    response_model=StationAdminResponse,
+)
+def admin_toggle_station_precipitation(
+    station_id: int,
+    body: StationPrecipitationUpdate,
+    db: Session = Depends(get_db),
+):
+    """Habilita o deshabilita la serie de precipitación de una estación."""
+    station = db.get(Station, station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station {station_id} not found")
+
+    station.precipitation_enabled = body.precipitation_enabled
     db.commit()
     db.refresh(station)
     return station

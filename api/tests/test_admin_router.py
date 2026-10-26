@@ -583,3 +583,26 @@ def test_import_csv_override_does_not_affect_other_stations(client, seed_data, d
     ).scalars().all()
 
     assert len(before_s2) == len(after_s2)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Precipitation
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_admin_toggle_station_precipitation(client, seed_data):
+    r = client.patch(
+        "/admin/stations/2/precipitation",
+        json={"precipitation_enabled": True},
+    )
+
+    assert r.status_code == 200
+    assert r.json()["precipitation_enabled"] is True
+
+
+def test_admin_toggle_station_precipitation_not_found(client, seed_data):
+    r = client.patch(
+        "/admin/stations/999/precipitation",
+        json={"precipitation_enabled": True},
+    )
+
+    assert r.status_code == 404

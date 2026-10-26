@@ -6,10 +6,10 @@ from api.dependencies import get_db
 from common.database import Base
 
 from common.models import (
-    Station, Measurement,
+    Station, Measurement, PrecipitationMeasurement,
     GaugePoint, GaugeDatum, ReferenceZeroType
 )
-from datetime import date
+from datetime import date, datetime
 from fastapi.testclient import TestClient
 import os
 
@@ -72,6 +72,7 @@ def seed_data(db_session):
         latitud=30.00,
         longitud=50.00,
         gauge_point_id=1,
+        precipitation_enabled=True,
     )
     # station_2: sin gauge_point → sin conversión
     station_2 = Station(
@@ -112,16 +113,43 @@ def seed_data(db_session):
         date_time=date(2026, 2, 22), value=4.1,
     )
 
+    precipitation_1 = PrecipitationMeasurement(
+        id=1,
+        station_id=1,
+        date_time=datetime(2026, 2, 21, 10, 0),
+        precipitation=0.0,
+    )
+    precipitation_2 = PrecipitationMeasurement(
+        id=2,
+        station_id=1,
+        date_time=datetime(2026, 2, 21, 11, 0),
+        precipitation=2.5,
+    )
+    precipitation_3 = PrecipitationMeasurement(
+        id=3,
+        station_id=2,
+        date_time=datetime(2026, 2, 21, 11, 0),
+        precipitation=1.0,
+    )
+
     db_session.add_all([
         ign_type, gauge_point, gauge_datum,
         station_1, station_2, station_3,
         measurement_1, measurement_2, measurement_3,
+        precipitation_1, precipitation_2, precipitation_3,
     ])
     db_session.commit()
 
     # Reset postgres sequences so auto-increment works after manual ID assignment
     from sqlalchemy import text
-    tables = ["reference_zero_types", "gauge_points", "gauge_datums", "stations", "measurements"]
+    tables = [
+        "reference_zero_types",
+        "gauge_points",
+        "gauge_datums",
+        "stations",
+        "measurements",
+        "precipitation_measurements",
+    ]
     for table in tables:
         db_session.execute(text(
             f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), coalesce(max(id), 1)) FROM {table};"

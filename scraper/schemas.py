@@ -1,4 +1,5 @@
 from pydantic import BaseModel, field_validator
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Any
 import logging
@@ -32,3 +33,18 @@ class RawMeasurementData(BaseModel):
     source: str
     date_time: datetime
     value: Optional[float] = None
+
+
+@dataclass(frozen=True)
+class PrecipitationPoint:
+    station_id: int
+    station_name: str
+    latitud: float
+    longitud: float
+
+
+class RawPrecipitationData(BaseModel):
+    station_id: int
+    station_name: str
+    date_time: datetime
+    precipitation: float

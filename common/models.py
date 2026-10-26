@@ -65,11 +65,17 @@ class Station(Base):
     alert_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     evacuation_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     is_visible: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    precipitation_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
     gauge_point_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("gauge_points.id"), nullable=True
     )
     gauge_point: Mapped[Optional["GaugePoint"]] = relationship(back_populates="stations")
     measurements: Mapped[List["Measurement"]] = relationship(
+        back_populates="station"
+    )
+    precipitation_measurements: Mapped[List["PrecipitationMeasurement"]] = relationship(
         back_populates="station"
     )
 
@@ -124,3 +130,16 @@ class FlowMeasurement(Base):
     date_time: Mapped[datetime] = mapped_column(DateTime, index=True)
     flow: Mapped[float] = mapped_column(Float, comment="Caudal estimado [m³/s]")
     station: Mapped["Station"] = relationship()
+
+
+class PrecipitationMeasurement(Base):
+    __tablename__ = "precipitation_measurements"
+    __table_args__ = (UniqueConstraint("station_id", "date_time"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    station_id: Mapped[int] = mapped_column(ForeignKey("stations.id"), index=True)
+    date_time: Mapped[datetime] = mapped_column(DateTime, index=True)
+    precipitation: Mapped[float] = mapped_column(
+        Float, comment="Precipitación horaria [mm]"
+    )
+    station: Mapped["Station"] = relationship(back_populates="precipitation_measurements")

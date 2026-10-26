@@ -54,5 +54,10 @@ class ScraperContext:
         if stations:
             self.repository.sync_stations(self._filter_stations(stations))
 
-        self.repository.save_measurements(measurements)
+        if getattr(self.strategy, "persists_internally", False) is True:
+            logger.info(
+                "Strategy persists measurements internally; skipping generic save."
+            )
+        else:
+            self.repository.save_measurements(measurements)
         logger.info("=== Execution completed ===")

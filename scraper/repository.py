@@ -1,10 +1,16 @@
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
-from common.models import Station, Measurement, ScraperError
+from common.models import Station, Measurement, PrecipitationMeasurement, ScraperError
 from common.flow_service import FlowService
-from scraper.schemas import RawStationData, RawMeasurementData
+from scraper.schemas import (
+    PrecipitationPoint,
+    RawMeasurementData,
+    RawPrecipitationData,
+    RawStationData,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +122,88 @@ class ScraperRepository:
             f"MEASUREMENTS COMPLETED. {saved} SAVED, {skipped} SKIPPED (UNKNOWN STATIONS). "
             f"{flow_saved} FLOW MEASUREMENTS SAVED."
         )
+
+    def get_precipitation_points(self) -> list[PrecipitationPoint]:
+        """Estaciones habilitadas para precipitación y con coordenadas."""
+        rows = (
+            self.db.query(Station)
+            .filter(
+                Station.precipitation_enabled.is_(True),
+                Station.latitud.isnot(None),
+                Station.longitud.isnot(None),
+            )
+            .order_by(Station.id)
+            .all()
+        )
+        return [
+            PrecipitationPoint(
+                station_id=station.id,
+                station_name=station.name,
+                latitud=station.latitud,
+                longitud=station.longitud,
+            )
+            for station in rows
+        ]
+
+    def save_precipitation_measurements(
+        self,
+        measurements: list[RawPrecipitationData],
+    ) -> int:
+        """Persiste precipitación deduplicando por (station_id, date_time).
+
+        Se agrupa por estación y se precargan los timestamps existentes del
+        rango para evitar una consulta por fila. Es portable a SQLite (tests).
+        """
+        if not measurements:
+            return 0
+
+        by_station: dict[int, list[RawPrecipitationData]] = defaultdict(list)
+        for raw in measurements:
+            by_station[raw.station_id].append(raw)
+
+        saved = 0
+        for station_id, rows in by_station.items():
+            try:
+                min_dt = min(row.date_time for row in rows)
+                max_dt = max(row.date_time for row in rows)
+                existing = {
+                    row[0]
+                    for row in self.db.query(
+                        PrecipitationMeasurement.date_time
+                    )
+                    .filter(
+                        PrecipitationMeasurement.station_id == station_id,
+                        PrecipitationMeasurement.date_time >= min_dt,
+                        PrecipitationMeasurement.date_time <= max_dt,
+                    )
+                    .all()
+                }
+                seen = set(existing)
+                new_rows = []
+                for raw in rows:
+                    if raw.date_time in seen:
+                        continue
+                    seen.add(raw.date_time)
+                    new_rows.append(
+                        PrecipitationMeasurement(
+                            station_id=station_id,
+                            date_time=raw.date_time,
+                            precipitation=raw.precipitation,
+                        )
+                    )
+
+                if new_rows:
+                    self.db.add_all(new_rows)
+                    self.db.commit()
+                    saved += len(new_rows)
+            except Exception as e:
+                self.db.rollback()
+                logger.error(
+                    f"ERROR SAVING PRECIPITATION FOR STATION {station_id}: {e}"
+                )
+
+        logger.info(f"PRECIPITATION MEASUREMENTS COMPLETED. {saved} SAVED.")
+        return saved
 
     def log_error(
         self,

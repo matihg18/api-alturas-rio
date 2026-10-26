@@ -12,6 +12,10 @@ from scraper.municipalidadgchu.strategy import (
     MunicipalidadGchuBackFillStrategy,
 )
 from scraper.sgb.strategy import SGBIncrementalStrategy, SGBBackFillStrategy
+from scraper.openmeteo.strategy import (
+    OpenMeteoIncrementalStrategy,
+    OpenMeteoBackFillStrategy,
+)
 from scraper.prefectura.syncer import PrefecturaStationSyncer
 from scraper.repository import ScraperRepository
 from scraper.context import ScraperContext
@@ -47,8 +51,8 @@ class SourceDefinition:
     name: str
     enabled: bool
     interval: int
-    make_incremental: Callable[[], ScraperStrategy]
-    make_backfill: Callable[[int], ScraperStrategy]
+    make_incremental: Callable[[ScraperRepository], ScraperStrategy]
+    make_backfill: Callable[[int, ScraperRepository], ScraperStrategy]
     make_syncer: Callable[[], BaseStationSyncer]
     # Ríos de interés para esta fuente. Lista vacía = sin filtro (acepta todo).
     allowed_rivers: list[str] = field(default_factory=list)
@@ -63,11 +67,13 @@ SOURCES: list[SourceDefinition] = [
         name="Prefectura",
         enabled=config.PREFECTURA_ENABLED,
         interval=config.PREFECTURA_INTERVAL,
-        make_incremental=lambda: PrefecturaIncrementalStrategy(
+        make_incremental=lambda repo: PrefecturaIncrementalStrategy(
             incremental_hours=config.PREFECTURA_INCREMENTAL_HOURS,
             allowed_rivers=config.ALLOWED_RIVERS,
         ),
-        make_backfill=lambda days: PrefecturaBackFillStrategy(days, allowed_rivers=config.ALLOWED_RIVERS),
+        make_backfill=lambda days, repo: PrefecturaBackFillStrategy(
+            days, allowed_rivers=config.ALLOWED_RIVERS
+        ),
         make_syncer=PrefecturaStationSyncer,
         allowed_rivers=config.ALLOWED_RIVERS,
     ),
@@ -75,8 +81,12 @@ SOURCES: list[SourceDefinition] = [
         name="INA",
         enabled=config.INA_ENABLED,
         interval=config.INA_INTERVAL,
-        make_incremental=lambda: INAIncrementalStrategy(allowed_rivers=config.ALLOWED_RIVERS),
-        make_backfill=lambda days: INABackFillStrategy(days, allowed_rivers=config.ALLOWED_RIVERS),
+        make_incremental=lambda repo: INAIncrementalStrategy(
+            allowed_rivers=config.ALLOWED_RIVERS
+        ),
+        make_backfill=lambda days, repo: INABackFillStrategy(
+            days, allowed_rivers=config.ALLOWED_RIVERS
+        ),
         make_syncer=NoOpStationSyncer,
         allowed_rivers=config.ALLOWED_RIVERS,
     ),
@@ -84,8 +94,8 @@ SOURCES: list[SourceDefinition] = [
         name="CARU",
         enabled=config.CARU_ENABLED,
         interval=config.CARU_INTERVAL,
-        make_incremental=CARUIncrementalStrategy,
-        make_backfill=CARUBackFillStrategy,
+        make_incremental=lambda repo: CARUIncrementalStrategy(),
+        make_backfill=lambda days, repo: CARUBackFillStrategy(days),
         make_syncer=NoOpStationSyncer,
         # CARU solo reporta estaciones del río Uruguay — no necesita filtro global.
         allowed_rivers=[],
@@ -94,8 +104,8 @@ SOURCES: list[SourceDefinition] = [
         name="Municipalidad Gualeguaychú",
         enabled=config.MUNICIPALIDAD_GCHU_ENABLED,
         interval=config.MUNICIPALIDAD_GCHU_INTERVAL,
-        make_incremental=MunicipalidadGchuIncrementalStrategy,
-        make_backfill=MunicipalidadGchuBackFillStrategy,
+        make_incremental=lambda repo: MunicipalidadGchuIncrementalStrategy(),
+        make_backfill=lambda days, repo: MunicipalidadGchuBackFillStrategy(days),
         make_syncer=NoOpStationSyncer,
         # Solo reporta el río Gualeguaychú — filtro explícito para documentar la intención.
         allowed_rivers=["GUALEGUAYCHU"],
@@ -104,11 +114,28 @@ SOURCES: list[SourceDefinition] = [
         name="SGB",
         enabled=config.SGB_ENABLED,
         interval=config.SGB_INTERVAL,
-        make_incremental=SGBIncrementalStrategy,
-        make_backfill=lambda days: SGBBackFillStrategy(days),
+        make_incremental=lambda repo: SGBIncrementalStrategy(),
+        make_backfill=lambda days, repo: SGBBackFillStrategy(days),
         make_syncer=NoOpStationSyncer,
         # SGB cubre la cuenca del Uruguay (Brasil): el río de cada estación
         # se asigna dinámicamente por el strategy — sin filtro global.
+        allowed_rivers=[],
+    ),
+    SourceDefinition(
+        name="Open-Meteo",
+        enabled=config.OPEN_METEO_ENABLED,
+        interval=config.OPEN_METEO_INTERVAL,
+        make_incremental=lambda repo: OpenMeteoIncrementalStrategy(
+            point_provider=repo.get_precipitation_points,
+            save_batch=repo.save_precipitation_measurements,
+        ),
+        make_backfill=lambda days, repo: OpenMeteoBackFillStrategy(
+            days,
+            point_provider=repo.get_precipitation_points,
+            save_batch=repo.save_precipitation_measurements,
+        ),
+        make_syncer=NoOpStationSyncer,
+        # La precipitación se asocia a estaciones existentes, no crea estaciones.
         allowed_rivers=[],
     ),
 ]
@@ -143,9 +170,9 @@ def build_runners(mode: str, backfill_days: int, repository: ScraperRepository) 
             continue
 
         strategy = (
-            source.make_backfill(backfill_days)
+            source.make_backfill(backfill_days, repository)
             if mode == "backfill"
-            else source.make_incremental()
+            else source.make_incremental(repository)
         )
         context = ScraperContext(
             strategy=strategy,

@@ -48,3 +48,33 @@ SGB_REPORT_BASE_URL = os.getenv("SGB_REPORT_BASE_URL", "https://sace.sgb.gov.br"
 SGB_ENABLED = os.getenv("SGB_ENABLED", "true").lower() == "true"
 SGB_INCREMENTAL_HOURS = int(os.getenv("SGB_INCREMENTAL_HOURS", "48"))
 SGB_INTERVAL = int(os.getenv("SGB_INTERVAL", "3600"))
+
+# --- Open-Meteo (precipitación) ---
+OPEN_METEO_ENABLED = os.getenv("OPEN_METEO_ENABLED", "true").lower() == "true"
+OPEN_METEO_INTERVAL = int(os.getenv("OPEN_METEO_INTERVAL", "3600"))
+OPEN_METEO_FORECAST_URL = os.getenv(
+    "OPEN_METEO_FORECAST_URL", "https://api.open-meteo.com/v1/forecast"
+)
+OPEN_METEO_ARCHIVE_URL = os.getenv(
+    "OPEN_METEO_ARCHIVE_URL", "https://archive-api.open-meteo.com/v1/archive"
+)
+OPEN_METEO_TIMEZONE = os.getenv(
+    "OPEN_METEO_TIMEZONE", "America/Argentina/Cordoba"
+)
+OPEN_METEO_PAST_DAYS = max(
+    1, min(92, int(os.getenv("OPEN_METEO_PAST_DAYS", "10")))
+)
+OPEN_METEO_ARCHIVE_DELAY_DAYS = max(
+    0, int(os.getenv("OPEN_METEO_ARCHIVE_DELAY_DAYS", "6"))
+)
+OPEN_METEO_BACKFILL_CHUNK_DAYS = max(
+    1, int(os.getenv("OPEN_METEO_BACKFILL_CHUNK_DAYS", "90"))
+)
+OPEN_METEO_MAX_POINTS_PER_REQUEST = max(
+    1, int(os.getenv("OPEN_METEO_MAX_POINTS_PER_REQUEST", "50"))
+)
+OPEN_METEO_ARCHIVE_MODEL = os.getenv("OPEN_METEO_ARCHIVE_MODEL", "era5")
+OPEN_METEO_API_KEY = os.getenv("OPEN_METEO_API_KEY", "")
+OPEN_METEO_DAILY_CALL_BUDGET = int(
+    os.getenv("OPEN_METEO_DAILY_CALL_BUDGET", "9000")
+)

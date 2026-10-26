@@ -19,6 +19,18 @@ class PagingParams:
         self.sorting = sorting
 
 
+class PrecipitationPagingParams:
+    def __init__(
+        self,
+        skip: int = Query(0, ge=0),
+        limit: int = Query(100, ge=1, le=1000),
+        sorting: Optional[str] = Query(None)
+    ):
+        self.skip = skip
+        self.limit = limit
+        self.sorting = sorting
+
+
 class DateFilters:
     def __init__(
         self,
@@ -129,3 +141,25 @@ class DischargeCurveParamsResponse(BaseModel):
     h0: float
     notes: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class PrecipitationMeasurementResponse(BaseModel):
+    id: int
+    station_id: int
+    date_time: datetime
+    precipitation: float
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PagedPrecipitationMeasurementResponse(BaseModel):
+    total_count: int
+    items: List[PrecipitationMeasurementResponse]
+
+
+class LatestPrecipitationItem(BaseModel):
+    station_id: int
+    latest: Optional[PrecipitationMeasurementResponse] = None
+
+
+class BulkLatestPrecipitationResponse(BaseModel):
+    items: List[LatestPrecipitationItem]

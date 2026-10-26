@@ -9,6 +9,9 @@ OnErrorCallback = Optional[Callable[..., None]]
 
 
 class ScraperStrategy(ABC):
+    # True si la estrategia persiste por su cuenta (p. ej. backfill por lotes).
+    persists_internally: bool = False
+
     @abstractmethod
     def get_data(
         self,
